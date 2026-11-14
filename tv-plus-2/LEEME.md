@@ -24,7 +24,7 @@ App para ver TV en vivo, películas y series. El cliente solo escribe **usuario 
 | `.github/workflows/` | Compila el APK de Android automáticamente en GitHub |
 | `assets/` | Íconos y banner |
 
-Si cambias `www/index.html`, cópialo también a `samsung-tizen/`, `lg-webos/` y `android-tv/app/src/main/assets/www/`.
+Si cambias `www/index.html`, cópialo también a `lg-webos/` y `android-tv/app/src/main/assets/www/`. En `samsung-tizen/` el código va separado en `app.js` y `app.css` (Samsung bloquea el código dentro del HTML): copia ahí el contenido de `<script>` y `<style>`.
 
 ## Cómo instalar
 **Android TV / TV Box (lo más fácil):**
