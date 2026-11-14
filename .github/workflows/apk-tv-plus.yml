@@ -1,0 +1,42 @@
+name: Armar APK de TV Plus y TV Plus 2
+on:
+  push:
+    paths: ['tv-plus/**', 'tv-plus-2/**', '.github/workflows/apk-tv-plus.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.10.2' }
+      - name: Armar TV Plus
+        run: |
+          cp tv-plus/www/index.html tv-plus/android-tv/app/src/main/assets/www/index.html
+          cd tv-plus/android-tv && gradle assembleDebug --no-daemon
+      - name: Armar TV Plus 2
+        run: |
+          cp tv-plus-2/www/index.html tv-plus-2/android-tv/app/src/main/assets/www/index.html
+          cd tv-plus-2/android-tv && gradle assembleDebug --no-daemon
+      - name: Renombrar
+        run: |
+          mkdir out
+          cp tv-plus/android-tv/app/build/outputs/apk/debug/*.apk out/TVPlus.apk
+          cp tv-plus-2/android-tv/app/build/outputs/apk/debug/*.apk out/TVPlus2.apk
+      - name: Publicar descarga
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tv-plus
+          name: TV Plus (Android TV)
+          make_latest: true
+          body: |
+            Descarga directa para la app Downloader del televisor:
+            TV Plus:   https://github.com/${{ github.repository }}/releases/download/tv-plus/TVPlus.apk
+            TV Plus 2: https://github.com/${{ github.repository }}/releases/download/tv-plus/TVPlus2.apk
+          files: |
+            out/TVPlus.apk
+            out/TVPlus2.apk
