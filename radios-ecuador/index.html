@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0b2a5b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Radios EC">
-<title>Radios del Ecuador</title>
+<title>Radios y TV del Ecuador</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -190,10 +190,10 @@ function play(s){
     navigator.mediaSession.setActionHandler('play',()=>au.play());navigator.mediaSession.setActionHandler('pause',()=>au.pause());}
 }
 function status(t){$('pstate').textContent=t}
-au.addEventListener('playing',()=>{status('En vivo');$('player').classList.add('playing');$('pp').textContent='❚❚'});
-au.addEventListener('pause',()=>{status('En pausa');$('player').classList.remove('playing');$('pp').textContent='▶'});
+au.addEventListener('playing',()=>{status('En vivo');window.AndroidApp&&cur&&AndroidApp.playing(cur.name);$('player').classList.add('playing');$('pp').textContent='❚❚'});
+au.addEventListener('pause',()=>{status('En pausa');window.AndroidApp&&AndroidApp.stopped();$('player').classList.remove('playing');$('pp').textContent='▶'});
 au.addEventListener('waiting',()=>status('Cargando…'));
-au.addEventListener('error',()=>{if(cur)status('Esta radio no responde, prueba otra');$('player').classList.remove('playing');$('pp').textContent='▶'});
+au.addEventListener('error',()=>{window.AndroidApp&&AndroidApp.stopped();if(cur)status('Esta radio no responde, prueba otra');$('player').classList.remove('playing');$('pp').textContent='▶'});
 
 $('pp').onclick=()=>{if(!cur)return;au.paused?au.play().catch(()=>play(cur)):au.pause()};
 $('dial').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;sel=b.dataset.p;store.set('prov',sel);$('q').value='';dial();render();scrollTo({top:0})};
@@ -251,6 +251,9 @@ function setMode(m){
 }
 $('tRadio').onclick=()=>setMode('radio');$('tTv').onclick=()=>setMode('tv');
 au.addEventListener('play',()=>{if(!vid.paused)vid.pause()});
+vid.addEventListener('playing',()=>window.AndroidApp&&AndroidApp.keepScreen(true));
+vid.addEventListener('pause',()=>window.AndroidApp&&AndroidApp.keepScreen(false));
+window.appBack=()=>{if(mode==='tv'){setMode('radio');return true}if($('q').value){$('q').value='';render();return true}return false};
 $('list').onclick=e=>{
   const f=e.target.closest('[data-f]');
   if(f){e.stopPropagation();const id=f.dataset.f;favs.has(id)?favs.delete(id):favs.add(id);store.set('favs',[...favs]);dial();render();return}
