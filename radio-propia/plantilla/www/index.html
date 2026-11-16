@@ -23,6 +23,7 @@ h1{font-size:clamp(30px,8vw,44px);line-height:1.05;margin:14px 0 4px;text-wrap:b
 @keyframes pulse{from{transform:scale(1);opacity:.9}to{transform:scale(1.35);opacity:0}}
 @media(prefers-reduced-motion:reduce){.playing .ring{animation:none}}
 .logo{position:absolute;inset:9%;border-radius:50%;background:#fff center/cover no-repeat;display:grid;place-items:center;color:var(--c);font-weight:800;font-size:clamp(48px,16vw,90px);box-shadow:0 20px 50px #0006}
+.disc.rect{width:min(88vw,380px);aspect-ratio:3/2}.rect .ring{border-radius:28px}.rect .logo{inset:5%;border-radius:22px;background-size:contain;background-color:#fff}
 .pp{width:84px;height:84px;border-radius:50%;border:0;background:var(--a);color:var(--c);font-size:32px;cursor:pointer;box-shadow:0 10px 26px #0005}
 .pp:focus-visible,.btn:focus-visible{outline:3px solid #fff;outline-offset:3px}
 .state{margin:12px 0 0;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px}
@@ -59,7 +60,7 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 document.documentElement.style.setProperty('--c',R.color);document.documentElement.style.setProperty('--a',R.acento);
 document.title=R.nombre;$('name').textContent=R.nombre;$('slogan').textContent=[R.slogan,R.ciudad].filter(Boolean).join(' · ');
 if(R.frecuencia){$('freq').hidden=false;$('freq').textContent=R.frecuencia}
-if(R.logo){$('logo').style.backgroundImage=`url('${R.logo}')`;$('logo').textContent=''}else $('logo').textContent=(R.nombre.replace(/^radio\s+/i,'')[0]||'R').toUpperCase();
+if(R.logo){$('logo').style.backgroundImage=`url('${R.logo}')`;$('logo').textContent='';const im=new Image();im.onload=()=>{if(im.width/im.height>1.15)$('disc').classList.add('rect')};im.src=R.logo}else $('logo').textContent=(R.nombre.replace(/^radio\s+/i,'')[0]||'R').toUpperCase();
 const L=[];
 if(R.whatsapp)L.push(`<a class="btn" href="https://wa.me/${esc(R.whatsapp.replace(/\D/g,''))}">💬 WhatsApp</a>`);
 if(R.facebook)L.push(`<a class="btn" href="${esc(R.facebook)}">Facebook</a>`);

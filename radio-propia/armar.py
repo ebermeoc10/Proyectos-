@@ -15,9 +15,15 @@ def icono(cfg, logo, n):
     im = Image.new('RGBA', (S, S), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
     d.rounded_rectangle([0, 0, S - 1, S - 1], radius=S * 0.22, fill=color(cfg['color']))
     if logo:
-        lg = Image.open(logo).convert('RGBA').resize((int(S * .78), int(S * .78)), Image.LANCZOS)
-        m = Image.new('L', lg.size, 0); ImageDraw.Draw(m).ellipse([0, 0, lg.size[0], lg.size[1]], fill=255)
-        im.paste(lg, (int(S * .11), int(S * .11)), m)
+        lg = Image.open(logo).convert('RGBA')
+        if abs(lg.width - lg.height) < lg.width * 0.1:
+            lg = lg.resize((int(S * .78), int(S * .78)), Image.LANCZOS)
+            m = Image.new('L', lg.size, 0); ImageDraw.Draw(m).ellipse([0, 0, lg.size[0], lg.size[1]], fill=255)
+            im.paste(lg, (int(S * .11), int(S * .11)), m)
+        else:
+            d.rounded_rectangle([0, 0, S - 1, S - 1], radius=S * 0.22, fill=(255, 255, 255))
+            lg.thumbnail((int(S * .96), int(S * .96)), Image.LANCZOS)
+            im.paste(lg, ((S - lg.width) // 2, (S - lg.height) // 2), lg)
     else:
         letra = (cfg['nombre'].lower().replace('radio ', '', 1)[:1] or 'r').upper()
         try: f = ImageFont.truetype('DejaVuSans-Bold.ttf', int(S * .55))
