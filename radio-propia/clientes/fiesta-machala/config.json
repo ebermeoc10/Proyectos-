@@ -4,12 +4,13 @@
   "ciudad": "Machala",
   "frecuencia": "1060 AM Stereo",
   "stream": "",
-  "buscar": "Fiesta Machala",
+  "buscar": "Canela El Oro",
   "color": "#1b2a8c",
   "acento": "#ffd800",
   "whatsapp": "593995706137",
   "facebook": "http://www.facebook.com/pages/Radio-Fiesta-La-Grande-de-Machala/126354310770033",
   "web": "http://www.radiofiestamachala.com/",
   "appId": "ec.goolnet.radio.fiestamachala",
-  "version": 3
+  "version": 4,
+  "aviso": "Señal de prueba (Radio Canela). Aquí irá la señal en vivo de Radio Fiesta."
 }
