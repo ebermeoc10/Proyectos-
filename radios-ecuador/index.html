@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b2a5b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Radios EC">
+<title>Radios del Ecuador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: cálida, popular, de radio de barrio
+   IDEA: el dial de una radio antigua con las provincias como bandas
+   PICTURE: la lista de emisoras es la pieza; barra de reproducción fija abajo
+   COLOUR/TYPE: azul profundo, amarillo de bandera, rojo de "en vivo"; Archivo
+   LAYOUT: título, dial de provincias deslizable, buscador, lista, reproductor */
+:root{color-scheme:light dark;--bg:light-dark(#f6f4ee,#071a3a);--card:light-dark(#fff,#0d2752);--ink:light-dark(#0b1a33,#eef3ff);--mut:light-dark(#5b6577,#9fb0cf);--blue:#0b2a5b;--yel:#ffd100;--red:#e4002b;--line:light-dark(#e4e0d6,#1c3a6e)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Archivo,system-ui,sans-serif;overflow-x:clip;padding-bottom:110px}
+header{background:var(--blue);color:#fff;padding:22px max(5vw,16px) 0;position:sticky;top:0;z-index:5}
+h1{margin:0;font-size:clamp(26px,6vw,40px);line-height:1.05;font-weight:800}
+h1 b{color:var(--yel)}
+.sub{color:#b9c8e6;font-size:14px;margin:4px 0 14px}
+.dial{display:flex;gap:8px;overflow-x:auto;padding-bottom:14px;scrollbar-width:none}
+.dial::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1.5px solid #3a5a92;background:transparent;color:#dfe8fb;border-radius:999px;padding:9px 15px;font:600 15px Archivo,sans-serif;min-height:44px;cursor:pointer;white-space:nowrap}
+.chip small{opacity:.7;font-weight:400;margin-left:4px}
+.chip.on{background:var(--yel);border-color:var(--yel);color:#0b1a33}
+main{max-width:900px;margin:0 auto;padding:16px max(4vw,12px)}
+.bar{display:flex;gap:8px;margin-bottom:12px}
+input{flex:1;font:16px Archivo,sans-serif;padding:12px 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);min-height:46px}
+input:focus,button:focus-visible{outline:3px solid var(--yel);outline-offset:2px}
+h2{font-size:20px;margin:6px 2px 10px}
+.list{display:grid;gap:8px}
+.st{display:flex;align-items:center;gap:12px;background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:10px 12px;cursor:pointer;text-align:left;width:100%;color:inherit;font:inherit}
+.st.on{border-color:var(--red);box-shadow:0 0 0 2px color-mix(in srgb,var(--red) 30%,transparent)}
+.logo{width:48px;height:48px;border-radius:10px;flex:none;background:var(--blue) center/cover no-repeat;display:grid;place-items:center;color:var(--yel);font-weight:800;font-size:18px}
+.nm{font-weight:600;line-height:1.25}
+.mt{color:var(--mut);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.info{flex:1;overflow:hidden}
+.fav{flex:none;width:44px;height:44px;border:0;background:none;font-size:22px;color:var(--mut);cursor:pointer;border-radius:10px}
+.fav.on{color:var(--yel)}
+.msg{color:var(--mut);text-align:center;padding:40px 10px}
+.player{position:fixed;left:0;right:0;bottom:0;background:var(--blue);color:#fff;display:flex;align-items:center;gap:12px;padding:12px max(4vw,14px) calc(12px + env(safe-area-inset-bottom));z-index:6;box-shadow:0 -6px 20px #0004}
+.player .logo{background-color:#16397a}
+.pinfo{flex:1;overflow:hidden}
+.pinfo .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.live{font-size:12px;color:#b9c8e6;display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:#7a8fb8}
+.playing .dot{background:var(--red);animation:p 1.2s infinite}
+@keyframes p{50%{opacity:.3}}
+@media(prefers-reduced-motion:reduce){.playing .dot{animation:none}}
+.pp{width:56px;height:56px;border-radius:50%;border:0;background:var(--yel);color:#0b1a33;font-size:22px;cursor:pointer;flex:none}
+.pp:disabled{opacity:.4}
+.tabs{display:flex;gap:6px;margin:0 0 12px}
+.tab{flex:1;max-width:160px;min-height:44px;border:0;border-radius:12px;background:#16397a;color:#dfe8fb;font:800 16px Archivo,sans-serif;cursor:pointer}
+.tab.on{background:#fff;color:var(--blue)}
+.tv .dial{display:none}
+.tv header{padding-bottom:6px}
+.screen{display:none;background:#000;border-radius:14px;overflow:hidden;margin-bottom:12px;aspect-ratio:16/9}
+.screen video{width:100%;height:100%;display:block;background:#000}
+.tv.watching .screen{display:block}
+.tv .player{display:none}
+.tv body,body.tv{padding-bottom:24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.ch{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:10px;cursor:pointer;color:inherit;font:inherit;text-align:center}
+.ch.on{border-color:var(--red)}
+.ch .logo{width:100%;height:70px;border-radius:8px;background-size:contain;background-color:#fff;margin-bottom:8px}
+.ch .nm{font-size:14px}
+.ch .mt{font-size:12px}
+.note{color:var(--mut);font-size:13px;margin:14px 2px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>Radios y TV del <b>Ecuador</b></h1>
+  <div class="sub" id="sub">Cargando emisoras…</div>
+  <div class="tabs"><button class="tab on" id="tRadio">📻 Radio</button><button class="tab" id="tTv">📺 TV</button></div>
+  <div class="dial" id="dial"></div>
+</header>
+<main>
+  <div class="screen"><video id="vid" controls playsinline></video></div>
+  <div class="bar"><input id="q" type="search" placeholder="Buscar radio o ciudad…" autocomplete="off"></div>
+  <h2 id="ttl">Emisoras</h2>
+  <div class="list" id="list"><div class="msg">Cargando emisoras del Ecuador…</div></div>
+  <div class="grid" id="grid" hidden></div>
+  <p class="note" id="tvnote" hidden>Canales de señal abierta que transmiten gratis por internet. Si alguno no carga, es que el canal cortó o cambió su señal en ese momento; prueba otro.</p>
+</main>
+<div class="player" id="player">
+  <div class="logo" id="plogo">📻</div>
+  <div class="pinfo"><div class="nm" id="pname">Elige una radio</div><div class="live"><span class="dot"></span><span id="pstate">Listo</span></div></div>
+  <button class="pp" id="pp" disabled aria-label="Reproducir">▶</button>
+</div>
+<audio id="au" preload="none"></audio>
+<script>
+{
+const SERVERS=['https://de1.api.radio-browser.info','https://de2.api.radio-browser.info','https://fi1.api.radio-browser.info','https://nl1.api.radio-browser.info','https://all.api.radio-browser.info'];
+// Provincia -> palabras clave (provincia y ciudades principales)
+const PROV={
+'Azuay':['azuay','cuenca','gualaceo','paute'],
+'Bolívar':['bolivar','guaranda'],
+'Cañar':['canar','azogues','la troncal'],
+'Carchi':['carchi','tulcan'],
+'Chimborazo':['chimborazo','riobamba','alausi'],
+'Cotopaxi':['cotopaxi','latacunga','salcedo','la mana'],
+'El Oro':['el oro','machala','pasaje','santa rosa','huaquillas','pinas','zaruma','arenillas'],
+'Esmeraldas':['esmeraldas','quininde','atacames'],
+'Galápagos':['galapagos','puerto ayora','san cristobal'],
+'Guayas':['guayas','guayaquil','duran','milagro','daule','samborondon','naranjal'],
+'Imbabura':['imbabura','ibarra','otavalo','cotacachi','atuntaqui'],
+'Loja':['loja','catamayo','cariamanga','macara'],
+'Los Ríos':['los rios','babahoyo','quevedo','vinces','ventanas','buena fe'],
+'Manabí':['manabi','manta','portoviejo','chone','bahia de caraquez','jipijapa','el carmen'],
+'Morona Santiago':['morona','macas','sucua'],
+'Napo':['napo','tena','archidona'],
+'Orellana':['orellana','coca'],
+'Pastaza':['pastaza','puyo'],
+'Pichincha':['pichincha','quito','sangolqui','cayambe','machachi','tumbaco'],
+'Santa Elena':['santa elena','salinas','la libertad','montanita'],
+'Santo Domingo':['santo domingo','tsachilas'],
+'Sucumbíos':['sucumbios','lago agrio','nueva loja'],
+'Tungurahua':['tungurahua','ambato','banos','pelileo'],
+'Zamora Chinchipe':['zamora','yantzaza']};
+const ORDER=Object.keys(PROV);
+const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const esc=s=>(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+let all=[],favs=new Set(store.get('favs',[])),sel=store.get('prov','El Oro'),cur=null,base=SERVERS[0];
+const au=$('au');
+
+function provOf(st){
+  const s=norm(st.state);
+  for(const p of ORDER)if(PROV[p].some(k=>s.includes(k)))return p;
+  const t=norm(st.name+' '+st.tags);
+  for(const p of ORDER)if(PROV[p].some(k=>new RegExp('\\b'+k+'\\b').test(t)))return p;
+  return 'Nacional';
+}
+
+async function load(){
+  for(const srv of SERVERS){
+    try{
+      const r=await fetch(srv+'/json/stations/search?countrycode=EC&hidebroken=true&limit=3000&order=clickcount&reverse=true',{headers:{'Accept':'application/json'}});
+      if(!r.ok)continue;
+      const d=await r.json();base=srv;
+      const seen=new Set();
+      all=d.filter(s=>s.url_resolved&&!seen.has(norm(s.name)+s.url_resolved)&&seen.add(norm(s.name)+s.url_resolved))
+           .map(s=>({id:s.stationuuid,name:s.name.trim(),url:s.url_resolved,logo:s.favicon,state:s.state,tags:s.tags,codec:s.codec,br:s.bitrate,votes:s.clickcount,prov:provOf(s)}));
+      if(mode==='radio')$('sub').textContent=all.length+' emisoras en vivo · 24 provincias';
+      dial();render();return;
+    }catch(e){}
+  }
+  $('list').innerHTML='<div class="msg">No se pudieron cargar las emisoras. Revisa tu conexión a internet y vuelve a abrir la app.</div>';
+  $('sub').textContent='Sin conexión';
+}
+
+function count(p){return p==='Favoritas'?all.filter(s=>favs.has(s.id)).length:p==='Todas'?all.length:all.filter(s=>s.prov===p).length}
+function dial(){
+  const tabs=['Favoritas',...ORDER,'Nacional','Todas'];
+  $('dial').innerHTML=tabs.map(p=>`<button class="chip${p===sel?' on':''}" data-p="${esc(p)}">${p==='Favoritas'?'★ ':''}${esc(p)}<small>${count(p)}</small></button>`).join('');
+  const on=$('dial').querySelector('.on');if(on)on.scrollIntoView({inline:'center',block:'nearest'});
+}
+
+function render(){
+  const q=norm($('q').value.trim());
+  let L=q?all:sel==='Favoritas'?all.filter(s=>favs.has(s.id)):sel==='Todas'?all:all.filter(s=>s.prov===sel);
+  if(q)L=L.filter(s=>norm(s.name+' '+s.state+' '+s.tags+' '+s.prov).includes(q));
+  $('ttl').textContent=q?`Resultados para “${$('q').value.trim()}”`:sel==='Nacional'?'Nacionales y sin provincia':sel;
+  if(!L.length){$('list').innerHTML=`<div class="msg">${sel==='Favoritas'&&!q?'Aún no tienes favoritas. Toca la ☆ de una radio para guardarla aquí.':'No hay emisoras aquí todavía.'}</div>`;return}
+  $('list').innerHTML=L.map(s=>`<div class="st${cur&&cur.id===s.id?' on':''}" data-id="${s.id}" role="button" tabindex="0">
+    ${logo(s)}
+    <div class="info"><div class="nm">${esc(s.name)}</div><div class="mt">${esc(s.prov)}${s.state&&norm(s.state)!==norm(s.prov)?' · '+esc(s.state):''}${s.br?' · '+s.br+' kbps':''}</div></div>
+    <button class="fav${favs.has(s.id)?' on':''}" data-f="${s.id}" aria-label="Favorita">${favs.has(s.id)?'★':'☆'}</button></div>`).join('');
+}
+function logo(s){const ini=esc((s.name.match(/[A-Za-z0-9]/)||['R'])[0].toUpperCase());return s.logo&&/^https:/.test(s.logo)?`<div class="logo" style="background-image:url('${esc(s.logo)}')"></div>`:`<div class="logo">${ini}</div>`}
+
+function play(s){
+  cur=s;$('pname').textContent=s.name;$('pp').disabled=false;
+  $('plogo').outerHTML=logo(s).replace('class="logo"','class="logo" id="plogo"');
+  status('Conectando…');
+  au.src=s.url.startsWith('http://')&&location.protocol==='https:'?s.url.replace('http://','https://'):s.url;
+  au.play().catch(()=>{au.src=s.url;au.play().catch(()=>status('Esta radio no responde, prueba otra'))});
+  render();
+  fetch(base+'/json/url/'+s.id).catch(()=>{});
+  if('mediaSession' in navigator){navigator.mediaSession.metadata=new MediaMetadata({title:s.name,artist:s.prov+' · Radios del Ecuador',artwork:s.logo?[{src:s.logo}]:[]});
+    navigator.mediaSession.setActionHandler('play',()=>au.play());navigator.mediaSession.setActionHandler('pause',()=>au.pause());}
+}
+function status(t){$('pstate').textContent=t}
+au.addEventListener('playing',()=>{status('En vivo');$('player').classList.add('playing');$('pp').textContent='❚❚'});
+au.addEventListener('pause',()=>{status('En pausa');$('player').classList.remove('playing');$('pp').textContent='▶'});
+au.addEventListener('waiting',()=>status('Cargando…'));
+au.addEventListener('error',()=>{if(cur)status('Esta radio no responde, prueba otra');$('player').classList.remove('playing');$('pp').textContent='▶'});
+
+$('pp').onclick=()=>{if(!cur)return;au.paused?au.play().catch(()=>play(cur)):au.pause()};
+$('dial').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;sel=b.dataset.p;store.set('prov',sel);$('q').value='';dial();render();scrollTo({top:0})};
+$('q').oninput=()=>mode==='tv'?renderTv():render();
+
+// ---------- TV ----------
+const TVSRC=['https://iptv-org.github.io/iptv/countries/ec.m3u','https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/countries/ec.m3u'];
+const vid=$('vid');let mode='radio',tv=null,curTv=null,hls=null;
+async function loadTv(){
+  $('grid').innerHTML='<div class="msg">Cargando canales…</div>';
+  for(const u of TVSRC){
+    try{const r=await fetch(u);if(!r.ok)continue;tv=parseM3u(await r.text());renderTv();return}catch(e){}
+  }
+  tv=null;$('grid').innerHTML='<div class="msg">No se pudieron cargar los canales. Revisa tu conexión.</div>';
+}
+function parseM3u(t){
+  const out=[],lines=t.split(/\r?\n/);let info=null;
+  for(const l of lines){
+    if(l.startsWith('#EXTINF')){
+      const g=k=>(l.match(new RegExp(k+'="([^"]*)"'))||[])[1]||'';
+      info={name:l.slice(l.lastIndexOf(',')+1).replace(/\s*\((\d+p)\)/,'').replace(/\s*\[.*?\]/g,'').trim(),logo:g('tvg-logo'),cat:g('group-title').split(';')[0],geo:/geo-blocked/i.test(l)};
+    }else if(info&&/^https?:\/\//.test(l.trim())){
+      const u=l.trim();if(!out.some(c=>c.name===info.name))out.push({...info,id:'tv'+out.length,url:u});info=null;
+    }
+  }
+  return out.sort((a,b)=>a.name.localeCompare(b.name,'es'));
+}
+function renderTv(){
+  if(!tv)return;
+  const q=norm($('q').value.trim());
+  const L=q?tv.filter(c=>norm(c.name+' '+c.cat).includes(q)):tv;
+  $('ttl').textContent=q?`Canales con “${$('q').value.trim()}”`:'Canales de TV en vivo';
+  $('sub').textContent=tv.length+' canales ecuatorianos gratis';
+  $('grid').innerHTML=L.length?L.map(c=>`<button class="ch${curTv&&curTv.id===c.id?' on':''}" data-t="${c.id}">
+    ${c.logo&&/^https:/.test(c.logo)?`<div class="logo" style="background-image:url('${esc(c.logo)}')"></div>`:`<div class="logo">${esc(c.name.slice(0,2).toUpperCase())}</div>`}
+    <div class="nm">${esc(c.name)}</div><div class="mt">${esc(c.cat||'General')}</div></button>`).join(''):'<div class="msg">No hay canales con ese nombre.</div>';
+}
+function watch(c){
+  curTv=c;au.pause();document.documentElement.classList.add('watching');
+  if(hls){hls.destroy();hls=null}
+  if(vid.canPlayType('application/vnd.apple.mpegurl')){vid.src=c.url}
+  else if(window.Hls&&Hls.isSupported()){hls=new Hls();hls.loadSource(c.url);hls.attachMedia(vid)}
+  else vid.src=c.url;
+  vid.play().catch(()=>{});renderTv();scrollTo({top:0,behavior:'smooth'});
+}
+$('grid').onclick=e=>{const b=e.target.closest('[data-t]');if(b)watch(tv.find(c=>c.id===b.dataset.t))};
+function setMode(m){
+  mode=m;document.documentElement.classList.toggle('tv',m==='tv');
+  $('tRadio').classList.toggle('on',m==='radio');$('tTv').classList.toggle('on',m==='tv');
+  $('list').hidden=m==='tv';$('grid').hidden=m!=='tv';$('tvnote').hidden=m!=='tv';
+  $('q').value='';$('q').placeholder=m==='tv'?'Buscar canal…':'Buscar radio o ciudad…';
+  if(m==='tv'){tv?renderTv():loadTv()}
+  else{vid.pause();document.documentElement.classList.remove('watching');$('sub').textContent=all.length?all.length+' emisoras en vivo · 24 provincias':'Cargando emisoras…';render()}
+  store.set('mode',m);
+}
+$('tRadio').onclick=()=>setMode('radio');$('tTv').onclick=()=>setMode('tv');
+au.addEventListener('play',()=>{if(!vid.paused)vid.pause()});
+$('list').onclick=e=>{
+  const f=e.target.closest('[data-f]');
+  if(f){e.stopPropagation();const id=f.dataset.f;favs.has(id)?favs.delete(id):favs.add(id);store.set('favs',[...favs]);dial();render();return}
+  const r=e.target.closest('.st');if(r)play(all.find(s=>s.id===r.dataset.id));
+};
+$('list').onkeydown=e=>{if(e.key==='Enter'){const r=e.target.closest('.st');if(r)play(all.find(s=>s.id===r.dataset.id))}};
+load();
+}
+</script>
+</body>
+</html>
