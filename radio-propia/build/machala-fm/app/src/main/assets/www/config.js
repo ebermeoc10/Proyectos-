@@ -1,0 +1,1 @@
+window.RADIO={"nombre": "Radio Machala FM", "slogan": "...de las buenas; la mejor!", "ciudad": "Machala", "frecuencia": "104.7 FM", "stream": "", "buscar": "Machala FM", "logo": "https://machalafm.com/imagenes/logoradio.png", "color": "#0b2a5b", "acento": "#ffd100", "whatsapp": "", "facebook": "https://www.facebook.com/MachalaFM/", "web": "http://machalafm.com/"};

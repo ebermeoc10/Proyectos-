@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Radio en vivo</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<style>
+/* Plantilla de app para una sola radio. Los datos salen de config.js */
+:root{--c:#0b2a5b;--a:#ffd100;--ink:#fff}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;font:16px/1.5 Archivo,system-ui,sans-serif;color:var(--ink);background:radial-gradient(120% 80% at 50% 0%,color-mix(in srgb,var(--c) 70%,#fff 30%),var(--c) 60%,color-mix(in srgb,var(--c) 70%,#000));display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:calc(28px + env(safe-area-inset-top)) 22px calc(22px + env(safe-area-inset-bottom));overflow-x:clip;text-align:center}
+.top{width:100%;max-width:420px}
+.freq{display:inline-block;background:var(--a);color:var(--c);font-weight:800;border-radius:999px;padding:4px 14px;font-size:14px}
+h1{font-size:clamp(30px,8vw,44px);line-height:1.05;margin:14px 0 4px;text-wrap:balance}
+.slogan{opacity:.85;margin:0}
+.disc{position:relative;width:min(70vw,300px);aspect-ratio:1;margin:26px auto}
+.disc .ring{position:absolute;inset:0;border-radius:50%;border:3px solid color-mix(in srgb,var(--a) 60%,transparent)}
+.playing .ring{animation:pulse 2s infinite}
+.playing .ring.r2{animation-delay:1s}
+@keyframes pulse{from{transform:scale(1);opacity:.9}to{transform:scale(1.35);opacity:0}}
+@media(prefers-reduced-motion:reduce){.playing .ring{animation:none}}
+.logo{position:absolute;inset:9%;border-radius:50%;background:#fff center/cover no-repeat;display:grid;place-items:center;color:var(--c);font-weight:800;font-size:clamp(48px,16vw,90px);box-shadow:0 20px 50px #0006}
+.pp{width:84px;height:84px;border-radius:50%;border:0;background:var(--a);color:var(--c);font-size:32px;cursor:pointer;box-shadow:0 10px 26px #0005}
+.pp:focus-visible,.btn:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.state{margin:12px 0 0;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px}
+.dot{width:9px;height:9px;border-radius:50%;background:#ffffff80}
+.playing .dot{background:#ff3b3b}
+.links{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:100%;max-width:420px;margin-top:20px}
+.btn{flex:1 1 120px;min-height:48px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;background:#ffffff1f;color:#fff;text-decoration:none;font-weight:600;border:1.5px solid #ffffff40}
+.vol{width:min(80vw,300px);margin-top:16px;accent-color:var(--a)}
+.foot{font-size:12px;opacity:.6;margin-top:16px}
+</style>
+</head>
+<body>
+<div class="top">
+  <span class="freq" id="freq" hidden></span>
+  <h1 id="name">Radio</h1>
+  <p class="slogan" id="slogan"></p>
+</div>
+<div>
+  <div class="disc" id="disc"><span class="ring"></span><span class="ring r2"></span><div class="logo" id="logo">R</div></div>
+  <button class="pp" id="pp" aria-label="Reproducir">▶</button>
+  <p class="state"><span class="dot"></span><span id="st">Toca para escuchar en vivo</span></p>
+  <input class="vol" id="vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volumen">
+</div>
+<div style="width:100%;display:flex;flex-direction:column;align-items:center">
+  <div class="links" id="links"></div>
+  <div class="foot">Transmisión: Goolnet · Machala</div>
+</div>
+<audio id="au" preload="none"></audio>
+<script>
+{
+const R=Object.assign({nombre:'Radio',slogan:'',frecuencia:'',ciudad:'',stream:'',buscar:'',color:'#0b2a5b',acento:'#ffd100',logo:'',whatsapp:'',facebook:'',web:''},window.RADIO||{});
+const $=id=>document.getElementById(id),au=$('au');
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+document.documentElement.style.setProperty('--c',R.color);document.documentElement.style.setProperty('--a',R.acento);
+document.title=R.nombre;$('name').textContent=R.nombre;$('slogan').textContent=[R.slogan,R.ciudad].filter(Boolean).join(' · ');
+if(R.frecuencia){$('freq').hidden=false;$('freq').textContent=R.frecuencia}
+if(R.logo){$('logo').style.backgroundImage=`url('${R.logo}')`;$('logo').textContent=''}else $('logo').textContent=(R.nombre.replace(/^radio\s+/i,'')[0]||'R').toUpperCase();
+const L=[];
+if(R.whatsapp)L.push(`<a class="btn" href="https://wa.me/${esc(R.whatsapp.replace(/\D/g,''))}">💬 WhatsApp</a>`);
+if(R.facebook)L.push(`<a class="btn" href="${esc(R.facebook)}">Facebook</a>`);
+if(R.web)L.push(`<a class="btn" href="${esc(R.web)}">Sitio web</a>`);
+$('links').innerHTML=L.join('');
+
+let url=R.stream;
+async function resolve(){
+  if(url||!R.buscar)return url;
+  for(const s of ['https://de1.api.radio-browser.info','https://de2.api.radio-browser.info','https://all.api.radio-browser.info']){
+    try{const r=await fetch(s+'/json/stations/search?countrycode=EC&hidebroken=true&order=clickcount&reverse=true&limit=1&name='+encodeURIComponent(R.buscar));
+      const d=await r.json();if(d[0]){url=d[0].url_resolved;return url}}catch(e){}
+  }
+  return '';
+}
+const st=t=>$('st').textContent=t;
+async function play(){
+  st('Conectando…');
+  const u=await resolve();
+  if(!u){st('La señal no está disponible ahora');return}
+  if(au.src!==u)au.src=u;
+  au.play().catch(()=>st('No se pudo conectar, intenta de nuevo'));
+}
+$('pp').onclick=()=>au.paused?play():au.pause();
+$('vol').oninput=e=>au.volume=e.target.value;
+au.addEventListener('playing',()=>{document.body.classList.add('playing');st('En vivo');$('pp').textContent='❚❚';window.AndroidApp&&AndroidApp.playing(R.nombre)});
+au.addEventListener('pause',()=>{document.body.classList.remove('playing');st('En pausa');$('pp').textContent='▶';window.AndroidApp&&AndroidApp.stopped()});
+au.addEventListener('waiting',()=>st('Cargando…'));
+au.addEventListener('error',()=>{document.body.classList.remove('playing');$('pp').textContent='▶';if(au.src)st('Se cortó la señal, toca para reintentar');window.AndroidApp&&AndroidApp.stopped()});
+if('mediaSession' in navigator){navigator.mediaSession.metadata=new MediaMetadata({title:R.nombre,artist:R.frecuencia||'En vivo',artwork:R.logo?[{src:R.logo}]:[]});
+  navigator.mediaSession.setActionHandler('play',play);navigator.mediaSession.setActionHandler('pause',()=>au.pause())}
+window.appBack=()=>false;
+}
+</script>
+</body>
+</html>
