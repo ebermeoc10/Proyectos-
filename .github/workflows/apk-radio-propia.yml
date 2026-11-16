@@ -1,0 +1,39 @@
+name: Armar APK de radios clientes
+on:
+  push:
+    paths: ['radio-propia/**', '.github/workflows/apk-radio-propia.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.10.2' }
+      - name: Preparar cada radio
+        run: |
+          pip install pillow
+          python3 radio-propia/armar.py
+      - name: Armar los APK
+        run: |
+          mkdir out
+          for d in radio-propia/build/*/; do
+            slug=$(basename "$d")
+            (cd "$d" && gradle assembleDebug --no-daemon -q)
+            cp "$d"app/build/outputs/apk/debug/*.apk "out/$slug.apk"
+          done
+          ls out
+      - name: Publicar descargas
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: radio-propia
+          name: Apps de radios clientes
+          make_latest: false
+          body: |
+            Una app por radio. Descarga: https://github.com/${{ github.repository }}/releases/download/radio-propia/NOMBRE.apk
+            Demo: https://github.com/${{ github.repository }}/releases/download/radio-propia/demo-goolnet.apk
+          files: out/*.apk

@@ -7,3 +7,4 @@ Los APK de Android TV se arman solos en GitHub y quedan en *Releases*.
 - `radios-ecuador/` — Radios y TV del Ecuador: radios por provincia y TV gratis (web y Android)
   - Web: https://ebermeoc10.github.io/Proyectos-/radios-ecuador/
   - APK: https://github.com/ebermeoc10/Proyectos-/releases/download/radios-ecuador/RadiosEcuador.apk
+- `radio-propia/` — App por radio cliente (servicio de streaming) + servidor AzuraCast. Demo: https://github.com/ebermeoc10/Proyectos-/releases/download/radio-propia/demo-goolnet.apk
