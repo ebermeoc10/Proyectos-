@@ -4,3 +4,6 @@
 - `tv-plus-2/` — TV Plus 2: igual, con el segundo proveedor
 
 Los APK de Android TV se arman solos en GitHub y quedan en *Releases*.
+- `radios-ecuador/` — Radios y TV del Ecuador: radios por provincia y TV gratis (web y Android)
+  - Web: https://ebermeoc10.github.io/Proyectos-/radios-ecuador/
+  - APK: https://github.com/ebermeoc10/Proyectos-/releases/download/radios-ecuador/RadiosEcuador.apk
