@@ -1,0 +1,1 @@
+window.RADIO={"nombre": "Radio Demo Goolnet", "slogan": "Así se vería tu radio", "ciudad": "Machala", "frecuencia": "DEMO", "stream": "", "buscar": "Canela El Oro", "color": "#0b2a5b", "acento": "#ffd100", "whatsapp": "", "facebook": "", "web": ""};
