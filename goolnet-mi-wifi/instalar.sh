@@ -22,9 +22,23 @@ log(){ echo -e "\n\033[1;36m==> $*\033[0m"; }
 if [[ $EUID -ne 0 ]]; then echo "Corre como root (sudo)."; exit 1; fi
 
 # ---------------------------------------------------------------------------
+log "0/6  Chequeo de puertos (para no chocar con lo que ya corre)"
+EN_USO=""
+for p in 80 443 7547 7557 7567 8010 3000; do
+  if ss -ltn 2>/dev/null | grep -q ":$p "; then EN_USO="$EN_USO $p"; fi
+done
+if [[ -n "$EN_USO" ]]; then
+  echo "AVISO: estos puertos ya están ocupados en este servidor:$EN_USO"
+  echo "El 80/443 los comparte Nginx sin problema. Pero si 7547/7557/7567/8010/3000"
+  echo "están tomados por otra app (p.ej. las radios), avísame antes de seguir para"
+  echo "cambiarlos y no interrumpir nada. (Ctrl+C para parar; Enter para continuar.)"
+  read -r _ || true
+fi
+
+# ---------------------------------------------------------------------------
 log "1/6  Paquetes base"
 apt-get update -y
-apt-get install -y ca-certificates curl gnupg python3 python3-venv python3-pip nginx openssl
+apt-get install -y ca-certificates curl gnupg python3 python3-venv python3-pip nginx openssl iproute2
 
 # ---------------------------------------------------------------------------
 log "2/6  Docker (si falta)"
@@ -65,7 +79,7 @@ After=network.target docker.service
 WorkingDirectory=$BACK_DIR
 Environment=SESSION_SECRET=$SESSION_SECRET
 Environment=GENIEACS_NBI=http://127.0.0.1:7557
-ExecStart=$BACK_DIR/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+ExecStart=$BACK_DIR/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8010
 Restart=always
 
 [Install]
@@ -76,26 +90,33 @@ systemctl daemon-reload
 systemctl enable --now miwifi.service
 
 # ---------------------------------------------------------------------------
-log "5/6  Nginx"
-cat > /etc/nginx/sites-available/miwifi <<EOF
+log "5/6  Nginx (sin tocar lo que ya corre, p.ej. las radios)"
+# Server block SOLO para el subdominio miwifi. No se borra ningún otro sitio,
+# así las radios y demás siguen igual. Requiere un DOMINIO propio.
+if [[ -z "$DOMINIO" ]]; then
+  echo "AVISO: sin DOMINIO no creo el sitio de Nginx para no chocar con lo que"
+  echo "ya sirve este servidor. Vuelve a correr con DOMINIO=miwifi.tudominio.com"
+else
+  cat > /etc/nginx/sites-available/miwifi <<EOF
 server {
     listen 80;
-    server_name ${DOMINIO:-_};
+    server_name ${DOMINIO};
 
     location /api/ {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:8010;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
     }
     location / {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:8010;
         proxy_set_header Host \$host;
     }
 }
 EOF
-ln -sf /etc/nginx/sites-available/miwifi /etc/nginx/sites-enabled/miwifi
-rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl reload nginx
+  ln -sf /etc/nginx/sites-available/miwifi /etc/nginx/sites-enabled/miwifi
+  # NO se borra el sitio default ni ningún otro: las radios quedan intactas.
+  nginx -t && systemctl reload nginx
+fi
 
 # ---------------------------------------------------------------------------
 log "6/6  HTTPS"
