@@ -1,0 +1,41 @@
+services:
+  mongo:
+    image: mongo:6
+    container_name: genieacs-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - acs
+
+  genieacs:
+    image: drumsergio/genieacs:latest
+    container_name: genieacs
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      - GENIEACS_MONGODB_CONNECTION_URL=mongodb://mongo:27017/genieacs
+      # Clave de ciframiento de la UI. Cambia esto por algo largo y aleatorio.
+      - GENIEACS_UI_JWT_SECRET=${GENIEACS_UI_JWT_SECRET}
+      - GENIEACS_CWMP_INTERFACE=0.0.0.0
+      - GENIEACS_NBI_INTERFACE=0.0.0.0
+      - GENIEACS_FS_INTERFACE=0.0.0.0
+      - GENIEACS_UI_INTERFACE=0.0.0.0
+    ports:
+      # CWMP: aquí se conectan las ONT Huawei por TR-069
+      - "7547:7547"
+      # NBI: API que consume tu backend (NO exponer a internet; déjalo interno)
+      - "127.0.0.1:7557:7557"
+      # FS: servidor de archivos (firmware/config)
+      - "7567:7567"
+      # UI de administración de GenieACS (protégela detrás de tu proxy/VPN)
+      - "127.0.0.1:3000:3000"
+    networks:
+      - acs
+
+networks:
+  acs:
+
+volumes:
+  mongo-data:

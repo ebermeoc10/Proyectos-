@@ -1,0 +1,7 @@
+# secretos y datos locales
+backend/clients.json
+backend/.env
+acs/.env
+**/venv/
+__pycache__/
+*.pyc

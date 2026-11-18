@@ -1,0 +1,8 @@
+{
+  "_comentario": "Copia a clients.json. Genera cada registro con alta_cliente.py. La clave de arriba es el USUARIO con que entra el cliente (cédula o código Goolnet).",
+  "0700000000": {
+    "salt": "generado_automaticamente",
+    "pin_hash": "generado_automaticamente",
+    "device_id": "48575443-HG8145X6-485754430000XXXX"
+  }
+}
