@@ -274,6 +274,18 @@ def orden_cercana(lat, lng, ordenes):
     return mejor
 
 
+def orden_de_parada(p, ordenes):
+    """Orden a la que pertenece una parada: la que el técnico tenía abierta
+    (entre "Llegué" y "Terminé") en ese rato, o la que está a pocos metros."""
+    for o in ordenes:
+        ini = o.get("llegada")
+        if ini:
+            fin = o.get("terminada") or ahora()
+            if ini <= p["hasta"] and fin >= p["desde"]:
+                return o
+    return orden_cercana(p["lat"], p["lng"], ordenes)
+
+
 def estado_actual(tec, a, t_ahora):
     """Estado en vivo de un técnico."""
     con = db()
@@ -304,9 +316,9 @@ def estado_actual(tec, a, t_ahora):
     quieto = (t_ahora - pts[k]["ts"]) // 60
     e["parado_min"] = int(quieto)
     ords = [dict(r) for r in con.execute(
-        "SELECT id, cliente, lat, lng FROM ordenes WHERE tecnico_id=? AND fecha=?",
+        "SELECT id, cliente, lat, lng, llegada, terminada FROM ordenes WHERE tecnico_id=? AND fecha=?",
         (tec["id"], hoy()))]
-    oc = orden_cercana(u["lat"], u["lng"], ords)
+    oc = orden_de_parada({"lat": u["lat"], "lng": u["lng"], "desde": pts[k]["ts"], "hasta": u["ts"]}, ords)
     if oc:
         e["orden"] = oc["cliente"]
     minutos_sin = (t_ahora - u["ts"]) / 60
@@ -349,9 +361,9 @@ def alertas_del_dia(fecha, a):
             "SELECT ts, lat, lng FROM puntos WHERE tecnico_id=? AND ts>=? AND ts<? ORDER BY ts",
             (tid, ini, fin))]
         ords = [dict(o) for o in con.execute(
-            "SELECT cliente, lat, lng FROM ordenes WHERE tecnico_id=? AND fecha=?", (tid, fecha))]
+            "SELECT cliente, lat, lng, llegada, terminada FROM ordenes WHERE tecnico_id=? AND fecha=?", (tid, fecha))]
         for p in calcular_paradas(pts, a["minutos_parada"]):
-            if not orden_cercana(p["lat"], p["lng"], ords):
+            if not orden_de_parada(p, ords):
                 out.append({"ts": p["desde"], "hora": p["desde_txt"], "tecnico": nombre,
                             "texto": "Parado %d min fuera de una orden (%s a %s)" % (
                                 p["minutos"], p["desde_txt"], p["hasta_txt"]),
@@ -492,7 +504,7 @@ def api_recorrido():
         "SELECT * FROM ordenes WHERE tecnico_id=? AND fecha=? ORDER BY id", (tid, fecha))]
     paradas = calcular_paradas(pts, a["minutos_parada"])
     for p in paradas:
-        o = orden_cercana(p["lat"], p["lng"], ords)
+        o = orden_de_parada(p, ords)
         p["orden"] = o["cliente"] if o else None
     for o in ords:
         _decorar_orden(o)
