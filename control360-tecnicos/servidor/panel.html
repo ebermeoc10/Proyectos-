@@ -464,14 +464,14 @@ async function cargarFichas() {
       <div class="fila" style="margin-top:10px">
         <label>Valor mensual $ <input data-k="valor" value="20" inputmode="decimal" style="width:90px"></label>
         <label>Tipo <select data-k="tipo_cli"><option value="residential">Residencial</option><option value="corporate">Corporativo</option></select></label>
-        <label>Red <select data-k="red"><option value="orange">Orange.Net</option><option value="sta_ines">Orange Sta. Inés</option><option value="external">Otra red</option></select></label>
+        <label>Red <select data-k="red"><option value="orange" ${f.red !== 'sta_ines' && f.red !== 'external' ? 'selected' : ''}>Orange.Net</option><option value="sta_ines" ${f.red === 'sta_ines' ? 'selected' : ''}>Orange Sta. Inés</option><option value="external" ${f.red === 'external' ? 'selected' : ''}>Otra red</option></select></label>
         <label>Cobro <select data-k="frec"><option value="monthly">Cada mes</option><option value="once">Solo esta vez</option></select></label>
       </div>
       <div class="fila">
         <label>IP <input data-k="ip" value="${esc(f.ip)}" list="ips-${f.id}" style="width:160px"><datalist id="ips-${f.id}"></datalist></label>
         <button class="btn sec" data-ips="${f.id}">Ver IPs libres</button>
-        <label class="ext oculto">Nombre de la red <input data-k="red_nombre"></label>
-        <label class="ext oculto">Usuario <input data-k="ext_user"></label>
+        <label class="ext ${f.red === 'external' ? '' : 'oculto'}">Nombre de la red <input data-k="red_nombre" value="${esc(f.red_nombre || '')}"></label>
+        <label class="ext ${f.red === 'external' ? '' : 'oculto'}">Usuario <input data-k="ext_user" value="${esc(f.usuario_ext || '')}"></label>
       </div>
       <div class="fila"><button class="btn" data-crear="${f.id}">Crear en CONTROL360</button>
         <button class="btn peligro" data-rech="${f.id}">Rechazar</button><span class="msg" id="fm-${f.id}"></span></div>`;
@@ -487,7 +487,8 @@ async function cargarFichas() {
         <dl>
           ${filaDato('Nombre', f.nombre, A.nombre)}${filaDato('Cédula', f.cedula, A.cedula)}
           ${filaDato('Teléfono', f.telefono, A.telefono)}${filaDato('Dirección', f.direccion, A.direccion)}
-          ${filaDato('IP', f.ip, A.ip)}<dt>Casa</dt><dd>${mapa}</dd>
+          ${filaDato('IP', f.ip, A.ip)}
+          ${f.red === 'external' ? `<dt>Otra red</dt><dd>${esc(f.red_nombre)}${f.usuario_ext ? ' · usuario ' + esc(f.usuario_ext) : ''}</dd>` : (f.red === 'sta_ines' ? '<dt>Red</dt><dd>Orange Sta. Inés</dd>' : '')}<dt>Casa</dt><dd>${mapa}</dd>
           ${f.notas ? `<dt>Notas</dt><dd>${esc(f.notas)}</dd>` : ''}
           ${f.nota_oficina ? `<dt>Oficina</dt><dd>${esc(f.nota_oficina)}</dd>` : ''}
         </dl>${acciones}

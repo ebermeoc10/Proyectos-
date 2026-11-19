@@ -174,6 +174,10 @@ def db():
         con.row_factory = sqlite3.Row
         con.execute("PRAGMA journal_mode=WAL")
         con.executescript(ESQUEMA)
+        cols = {r[1] for r in con.execute("PRAGMA table_info(fichas)")}
+        for col in ("red", "red_nombre", "usuario_ext"):
+            if col not in cols:
+                con.execute("ALTER TABLE fichas ADD COLUMN %s TEXT DEFAULT ''" % col)
         g.tec_db = con
     return g.tec_db
 
@@ -787,7 +791,8 @@ import ipaddress
 from contextlib import closing
 from io import BytesIO
 
-CAMPOS_FICHA = ("nombre", "cedula", "telefono", "direccion", "ip", "notas")
+CAMPOS_FICHA = ("nombre", "cedula", "telefono", "direccion", "ip", "notas", "red_nombre", "usuario_ext")
+REDES = ("orange", "sta_ines", "external")
 
 
 def _foto_jpeg(b64):
@@ -899,6 +904,16 @@ def app_fichas():
             foto = _foto_jpeg(d.get("foto") or "")
         except ValueError as e:
             return jsonify(error=str(e)), 400
+        red = d.get("red") or "orange"
+        if red not in REDES:
+            return jsonify(error="Red no válida"), 400
+        if red == "external" and tipo == "nuevo":
+            if not datos["red_nombre"]:
+                return jsonify(error="Escriba el nombre de la otra red"), 400
+            if not datos["usuario_ext"] and not datos["ip"]:
+                return jsonify(error="Ponga el usuario o la IP de la otra red"), 400
+        if red != "external":
+            datos["red_nombre"] = datos["usuario_ext"] = ""
         antes = ""
         cliente_id = None
         if tipo == "nuevo" and not datos["nombre"]:
@@ -923,9 +938,11 @@ def app_fichas():
             lat = lng = None
         con.execute(
             "INSERT INTO fichas (tecnico_id, tipo, cliente_id, orden_id, nombre, cedula, telefono, direccion, ip, "
-            "lat, lng, foto, notas, antes, creada) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "lat, lng, foto, notas, antes, creada, red, red_nombre, usuario_ext) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (tid, tipo, cliente_id, d.get("orden_id") or None, datos["nombre"], datos["cedula"], datos["telefono"],
-             datos["direccion"], datos["ip"], lat, lng, foto, datos["notas"], antes, ahora()))
+             datos["direccion"], datos["ip"], lat, lng, foto, datos["notas"], antes, ahora(),
+             red, datos["red_nombre"], datos["usuario_ext"]))
         con.commit()
     filas = con.execute("SELECT * FROM fichas WHERE tecnico_id=? ORDER BY id DESC LIMIT 20", (tid,)).fetchall()
     return jsonify(fichas=[_ficha_dict(r) for r in filas])

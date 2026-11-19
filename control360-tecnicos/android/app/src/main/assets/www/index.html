@@ -105,6 +105,18 @@
       <label>Cédula</label><input id="c-cedula" inputmode="numeric" maxlength="13">
       <label>Teléfono</label><input id="c-telefono" inputmode="tel">
       <label>Dirección</label><input id="c-direccion">
+      <div id="c-red-caja">
+        <label>Red</label>
+        <select id="c-red" style="width:100%;font-size:19px;padding:13px;border:1px solid var(--borde);border-radius:12px;background:#fff">
+          <option value="orange">Orange.Net</option>
+          <option value="sta_ines">Orange Sta. Inés</option>
+          <option value="external">Otra red</option>
+        </select>
+        <div id="c-ext" class="oculto">
+          <label>Nombre de la otra red</label><input id="c-red_nombre" placeholder="Ej.: Telnet, Red Alex, Ecuared">
+          <label>Usuario (si la red usa usuario)</label><input id="c-usuario_ext" autocapitalize="none">
+        </div>
+      </div>
       <label>IP</label><input id="c-ip" inputmode="decimal" placeholder="Ej.: 10.20.30.40">
       <label>Ubicación de la casa</label>
       <div class="fila" style="align-items:center"><span id="c-ubi" style="flex:1;color:var(--suave)">—</span>
@@ -273,7 +285,8 @@ $('#i-salir').onclick = () => {
 
 /* ---- fichas de clientes ---- */
 let FICHA = null;   // {tipo, cliente_id, orden_id, foto, lat, lng}
-const CAMPOS = ['nombre','cedula','telefono','direccion','ip','notas'];
+const CAMPOS = ['nombre','cedula','telefono','direccion','ip','notas','red_nombre','usuario_ext'];
+$('#c-red').onchange = () => $('#c-ext').classList.toggle('oculto', $('#c-red').value !== 'external');
 function tomarUbicacion() {
   const u = N.ubicacion();
   if (u) { const [la, ln] = u.split(','); FICHA.lat = +la; FICHA.lng = +ln;
@@ -289,6 +302,8 @@ function abrirFicha(tipo, datos) {
   $('#c-buscar-caja').classList.toggle('oculto', tipo !== 'actualizar');
   $('#c-form').classList.toggle('oculto', tipo === 'actualizar');
   $('#c-ubi').textContent = '—';
+  $('#c-red').value = 'orange'; $('#c-ext').classList.add('oculto');
+  $('#c-red-caja').classList.toggle('oculto', tipo !== 'nuevo');
   mostrar('cliente');
   tomarUbicacion();
 }
@@ -334,9 +349,12 @@ $('#c-foto').onchange = () => {
 };
 $('#c-enviar').onclick = async () => {
   const datos = { tipo: FICHA.tipo, cliente_id: FICHA.cliente_id, orden_id: FICHA.orden_id,
-                  lat: FICHA.lat, lng: FICHA.lng, foto: FICHA.foto };
+                  lat: FICHA.lat, lng: FICHA.lng, foto: FICHA.foto,
+                  red: FICHA.tipo === 'nuevo' ? $('#c-red').value : '' };
   CAMPOS.forEach(k => datos[k] = $('#c-' + k).value.trim());
   if (FICHA.tipo === 'nuevo' && !datos.nombre) { $('#c-msg').textContent = 'Escriba el nombre del cliente.'; return; }
+  if (datos.red === 'external' && !datos.red_nombre) { $('#c-msg').textContent = 'Escriba el nombre de la otra red.'; return; }
+  if (datos.red === 'external' && !datos.usuario_ext && !datos.ip) { $('#c-msg').textContent = 'Ponga el usuario o la IP.'; return; }
   if (!datos.foto && !confirm('¿Enviar sin foto de la casa?')) return;
   $('#c-enviar').disabled = true; $('#c-msg').style.color = 'var(--suave)'; $('#c-msg').textContent = 'Enviando…';
   try { await pedir('POST', '/api/fichas', datos); $('#c-msg').textContent = ''; mostrar('inicio'); }
