@@ -64,17 +64,19 @@ AJUSTES_DEFECTO = {
 bp = Blueprint("tecnicos", __name__)
 
 _chequeo_admin = None  # función externa opcional (login de CONTROL360)
+_url_login = None
 
 
-def usar_login_de_control360(funcion):
+def usar_login_de_control360(funcion, url_login="/login"):
     """Si CONTROL360 ya tiene login, pásale una función que devuelva True cuando
     el usuario actual es administrador de Orange. Así el panel no pide otra clave.
 
         from tecnicos import usar_login_de_control360
         usar_login_de_control360(lambda: session.get("empresa") == "Orange")
     """
-    global _chequeo_admin
+    global _chequeo_admin, _url_login
     _chequeo_admin = funcion
+    _url_login = url_login
 
 
 # ----------------------------------------------------------------- base de datos
@@ -363,11 +365,22 @@ def alertas_del_dia(fecha, a):
 def admin_ok():
     if _chequeo_admin is not None:
         try:
-            if _chequeo_admin():
-                return True
+            return bool(_chequeo_admin())
         except Exception:
-            pass
+            return False
     return session.get("tecnicos_admin") is True
+
+
+def _datos():
+    """Datos de un POST del panel: JSON, o el campo 'datos' de un formulario
+    (CONTROL360 exige formularios con su token csrf)."""
+    d = request.get_json(silent=True)
+    if d is None:
+        try:
+            d = json.loads(request.form.get("datos") or "{}")
+        except ValueError:
+            d = {}
+    return d
 
 
 def requiere_admin(f):
@@ -376,7 +389,7 @@ def requiere_admin(f):
         if not admin_ok():
             if request.path.startswith(url_for("tecnicos.panel") + "panel/api"):
                 return jsonify(error="Inicie sesión"), 401
-            return redirect(url_for("tecnicos.entrar"))
+            return redirect(_url_login or url_for("tecnicos.entrar"))
         return f(*args, **kw)
     return envoltura
 
@@ -438,7 +451,11 @@ def salir():
 @bp.route("/")
 @requiere_admin
 def panel():
-    return _html("panel.html", EMPRESA=EMPRESA, APK_URL=APK_URL)
+    integrado = _chequeo_admin is not None
+    return _html("panel.html", EMPRESA=EMPRESA, APK_URL=APK_URL,
+                 CSRF=str(session.get("csrf", "")),
+                 SALIR="/" if integrado else "salir",
+                 SALIR_TXT="Volver a CONTROL360" if integrado else "Salir")
 
 
 @bp.route("/app")
@@ -511,7 +528,7 @@ def _decorar_orden(o):
 def api_tecnicos():
     con = db()
     if request.method == "POST":
-        d = request.get_json(force=True)
+        d = _datos()
         nombre = (d.get("nombre") or "").strip()
         usuario = (d.get("usuario") or "").strip().lower()
         pin = (d.get("pin") or "").strip()
@@ -532,7 +549,7 @@ def api_tecnicos():
 @requiere_admin
 def api_tecnico_editar(tid):
     con = db()
-    d = request.get_json(force=True)
+    d = _datos()
     for campo in ("nombre", "telefono", "color"):
         if campo in d:
             con.execute("UPDATE tecnicos SET %s=? WHERE id=?" % campo, (d[campo], tid))
@@ -553,7 +570,7 @@ def api_tecnico_editar(tid):
 def api_ordenes():
     con = db()
     if request.method == "POST":
-        d = request.get_json(force=True)
+        d = _datos()
         if not (d.get("cliente") or "").strip():
             return jsonify(error="Falta el nombre del cliente"), 400
         con.execute(
@@ -577,7 +594,7 @@ def api_ordenes():
 @requiere_admin
 def api_orden_editar(oid):
     con = db()
-    d = request.get_json(force=True)
+    d = _datos()
     if d.get("borrar"):
         con.execute("DELETE FROM ordenes WHERE id=?", (oid,))
     else:
@@ -592,7 +609,7 @@ def api_orden_editar(oid):
 @requiere_admin
 def api_ajustes():
     if request.method == "POST":
-        d = request.get_json(force=True)
+        d = _datos()
         con = db()
         for k in AJUSTES_DEFECTO:
             if k in d:

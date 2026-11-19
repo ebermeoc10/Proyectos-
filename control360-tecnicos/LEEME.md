@@ -12,27 +12,17 @@ Módulo para seguir a los técnicos de Orange en campo.
 Descarga de la app: https://github.com/ebermeoc10/Proyectos-/releases/download/tecnicos-orange/TecnicosOrange.apk
 (se arma sola en GitHub cada vez que cambia algo en `android/`).
 
-## Instalar en PythonAnywhere (CONTROL360)
+## Instalación en PythonAnywhere (ya hecha, 19-nov-2026)
 
-1. Subir a la carpeta de CONTROL360 los archivos de `servidor/`: `tecnicos.py`, `panel.html`, `entrar.html`.
-2. En `flask_app.py`, después de crear `app`:
+- Archivos en `/home/Habita360/control360/tecnicos_orange/` (`tecnicos.py`, `panel.html`, `entrar.html`;
+  la base `tecnicos.db` se crea sola ahí). Respaldo del WSGI original: `wsgi_respaldo.py`.
+- Se registra al final de `/var/www/habita360_pythonanywhere_com_wsgi.py` (no se tocó `app.py`):
+  - el panel usa el login de CONTROL360 (super o admin de la empresa Orange) y su token csrf;
+  - las rutas `/tecnicos/api/...` de la app entran con el token del técnico, por eso se atienden
+    antes del control csrf de CONTROL360.
+- Panel: https://habita360.pythonanywhere.com/tecnicos/
 
-   ```python
-   from tecnicos import bp as tecnicos_bp
-   app.register_blueprint(tecnicos_bp, url_prefix="/tecnicos")
-   ```
-3. En la pestaña **Web** de PythonAnywhere, en *Environment variables* (o al inicio de `flask_app.py`):
-   `TECNICOS_CLAVE_PANEL` = clave del panel (por defecto `orange360`, cámbiela).
-4. Botón **Reload**. El panel queda en `https://habita360.pythonanywhere.com/tecnicos/`.
-
-La app trae ese servidor por defecto; si cambia, se pone en *Cambiar servidor* al entrar.
-
-Si CONTROL360 ya tiene su propio login, se puede evitar la segunda clave:
-
-```python
-from tecnicos import usar_login_de_control360
-usar_login_de_control360(lambda: session.get("empresa") == "Orange")  # ajustar a cómo guarda la sesión
-```
+Para quitarlo: devolver el WSGI al contenido de `wsgi_respaldo.py` y recargar.
 
 ## Primer uso
 

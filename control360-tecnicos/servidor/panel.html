@@ -84,7 +84,7 @@
   </div>
   <div class="der">
     <a class="btn sec" href="app" title="Enlace para instalar la app en el celular del técnico">App técnicos</a>
-    <a class="btn sec" href="salir">Salir</a>
+    <a class="btn sec" href="{{SALIR}}">{{SALIR_TXT}}</a>
   </div>
 </header>
 <nav>
@@ -210,6 +210,7 @@
 const COLOR = { movimiento:'var(--mov)', parado:'var(--parado)', sin_senal:'var(--sinsenal)',
                 gps_apagado:'var(--gps)', fuera:'var(--fuera)', sin_datos:'var(--fuera)' };
 const COLOR_HEX = { movimiento:'#3f8f6b', parado:'#c98a2b', sin_senal:'#8a94a3', gps_apagado:'#b4443d', fuera:'#b8c2cf', sin_datos:'#b8c2cf' };
+const CSRF = '{{CSRF}}';
 const DIAS = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 const ESTADO_ORDEN = { pendiente:'Pendiente', en_camino:'En camino', en_sitio:'En el sitio', terminada:'Terminada' };
 const CENTRO = [-3.2581, -79.9554]; // Machala
@@ -219,9 +220,15 @@ const iniciales = n => n.split(/\s+/).filter(Boolean).slice(0,2).map(p => p[0].t
 const fechaHoy = () => new Date(Date.now() - 5*3600e3).toISOString().slice(0,10);
 
 async function api(url, datos) {
-  const op = datos ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(datos) } : {};
+  let op = {};
+  if (datos) {
+    const fd = new FormData();
+    fd.append('csrf', CSRF);
+    fd.append('datos', JSON.stringify(datos));
+    op = { method:'POST', body:fd };
+  }
   const r = await fetch(url, op);
-  if (r.status === 401) { location.href = 'entrar'; throw new Error('sesión'); }
+  if (r.status === 401 || r.status === 403) { location.reload(); throw new Error('sesión'); }
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || 'Error');
   return j;
