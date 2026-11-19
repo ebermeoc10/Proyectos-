@@ -90,8 +90,8 @@ public class RastreoService extends Service implements LocationListener {
             else startForeground(NOTIF_ID, n);
             return true;
         } catch (Exception e) {
-            // Sin permiso de ubicación Android no deja iniciar el servicio.
-            Prefs.encolarEvento(this, "sin_permiso", "");
+            // Sin permiso de ubicación Android no deja iniciar el servicio
+            // (pasa al instalar, antes de dar el permiso: no es una alerta).
             return false;
         }
     }
@@ -199,7 +199,7 @@ public class RastreoService extends Service implements LocationListener {
         boolean ok = gps && permiso;
         if (gpsAntes == null || gpsAntes != ok) {
             if (gpsAntes != null || !ok) {
-                if (!permiso) Prefs.encolarEvento(this, "sin_permiso", "");
+                if (!permiso) { if (gpsAntes != null) Prefs.encolarEvento(this, "sin_permiso", ""); }
                 else Prefs.encolarEvento(this, ok ? "gps_encendido" : "gps_apagado", "");
             }
             gpsAntes = ok;
