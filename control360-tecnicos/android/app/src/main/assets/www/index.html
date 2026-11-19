@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Técnicos Orange</title>
+<style>
+  :root { --fondo:#eef2f6; --carta:#fff; --texto:#1f2a37; --suave:#64748b; --borde:#d9e1ea;
+          --acento:#3b7a8c; --acento-suave:#e3eff2; --ok:#3f8f6b; --ok-suave:#e2f1ea; --mal:#b4443d; --mal-suave:#f6e3e1;
+          --aviso:#9a6a1d; --aviso-suave:#fbf0de; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--fondo); color:var(--texto); font:17px/1.4 system-ui,Roboto,sans-serif; }
+  header { background:var(--acento); color:#fff; padding:16px 18px 18px; }
+  header h1 { margin:0; font-size:21px; }
+  header small { opacity:.85; }
+  .cont { padding:14px; }
+  .carta { background:var(--carta); border:1px solid var(--borde); border-radius:16px; padding:14px 16px; margin-bottom:12px; }
+  label { display:block; font-size:15px; color:var(--suave); margin:12px 0 6px; }
+  input, textarea { width:100%; font:inherit; font-size:19px; padding:13px; border:1px solid var(--borde); border-radius:12px; }
+  .btn { display:block; width:100%; font:inherit; font-size:18px; font-weight:600; padding:14px; border:0; border-radius:12px;
+         background:var(--acento); color:#fff; margin-top:14px; }
+  .btn.sec { background:var(--acento-suave); color:var(--acento); }
+  .btn.ok { background:var(--ok); }
+  .fila { display:flex; gap:8px; }
+  .fila .btn { margin-top:10px; font-size:16px; padding:12px 8px; }
+  .msg { color:var(--mal); margin-top:10px; min-height:1em; }
+  .estado { display:flex; gap:12px; align-items:center; }
+  .punto { width:16px; height:16px; border-radius:50%; flex:none; }
+  .estado b { font-size:18px; }
+  .estado small { color:var(--suave); display:block; }
+  .falta { background:var(--mal-suave); border-color:#ecc9c5; }
+  .falta b { color:var(--mal); }
+  h2 { font-size:14px; text-transform:uppercase; letter-spacing:.05em; color:var(--suave); margin:18px 4px 8px; }
+  .orden h3 { margin:0 0 4px; font-size:18px; }
+  .orden p { margin:2px 0; color:var(--suave); font-size:15px; }
+  .chip { display:inline-block; padding:3px 10px; border-radius:20px; font-size:13px; font-weight:600; margin:4px 0; }
+  .chip.pendiente { background:#eef1f5; color:#5b6676; }
+  .chip.en_camino { background:#e5eef8; color:#3d6aa0; }
+  .chip.en_sitio { background:var(--aviso-suave); color:var(--aviso); }
+  .chip.terminada { background:var(--ok-suave); color:var(--ok); }
+  .vacio { color:var(--suave); text-align:center; padding:20px; }
+  .oculto { display:none; }
+  a.link { color:var(--acento); font-size:15px; }
+  .pie { color:var(--suave); font-size:13px; text-align:center; margin:20px 0; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="p-login" class="oculto">
+  <header><h1>Técnicos Orange</h1><small>CONTROL360</small></header>
+  <div class="cont">
+    <div class="carta">
+      <label>Usuario</label>
+      <input id="l-usuario" autocapitalize="none" autocomplete="username">
+      <label>PIN</label>
+      <input id="l-pin" type="password" inputmode="numeric" maxlength="6">
+      <button class="btn" id="l-entrar">Entrar</button>
+      <div class="msg" id="l-msg"></div>
+      <p style="margin:14px 0 0"><a class="link" href="#" id="l-avanzado">Cambiar servidor</a></p>
+      <div id="l-serv-caja" class="oculto">
+        <label>Servidor</label>
+        <input id="l-servidor" autocapitalize="none" inputmode="url">
+      </div>
+    </div>
+    <p class="pie">Al entrar, la app envía su ubicación a la oficina solo en horario de trabajo.</p>
+  </div>
+</div>
+
+<!-- INICIO -->
+<div id="p-inicio" class="oculto">
+  <header><h1 id="i-nombre">Técnico</h1><small id="i-horario"></small></header>
+  <div class="cont">
+    <div class="carta" id="i-estado"></div>
+    <div id="i-faltas"></div>
+    <h2>Mis órdenes de hoy</h2>
+    <div id="i-ordenes"><div class="vacio">Cargando…</div></div>
+    <button class="btn sec" id="i-recargar">Actualizar órdenes</button>
+    <button class="btn sec" id="i-salir" style="margin-top:28px">Cerrar sesión</button>
+    <p class="pie" id="i-pie"></p>
+  </div>
+</div>
+
+<!-- TERMINAR ORDEN -->
+<div id="p-terminar" class="oculto">
+  <header><h1>Terminar orden</h1><small id="t-cliente"></small></header>
+  <div class="cont">
+    <div class="carta">
+      <label>Nota para la oficina (opcional)</label>
+      <textarea id="t-nota" rows="4" placeholder="Ej.: se instaló ONU y router, cliente conforme"></textarea>
+      <button class="btn ok" id="t-ok">Marcar como terminada</button>
+      <button class="btn sec" id="t-cancelar">Volver</button>
+      <div class="msg" id="t-msg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ESTADO = { pendiente:'Pendiente', en_camino:'En camino', en_sitio:'En el sitio', terminada:'Terminada' };
+const DEF_SERVIDOR = 'https://habita360.pythonanywhere.com/tecnicos';
+
+/* ---- puente con Android (con respaldo para probar en navegador) ---- */
+const N = window.Nativo || null;
+const esperas = {};
+let sec = 0;
+window._resp = (id, codigo, cuerpo) => {
+  const f = esperas[id]; delete esperas[id];
+  let j = {}; try { j = JSON.parse(cuerpo || '{}'); } catch (e) {}
+  f && f(codigo, j);
+};
+function pedir(metodo, ruta, datos) {
+  return new Promise((ok, mal) => {
+    const id = 'r' + (++sec);
+    esperas[id] = (c, j) => {
+      if (c === 401) { mostrar('login'); mal(new Error('Su sesión se cerró. Entre de nuevo.')); }
+      else if (c >= 200 && c < 300) ok(j);
+      else mal(new Error(j.error || 'Sin conexión'));
+    };
+    N.http(id, metodo, ruta, datos ? JSON.stringify(datos) : '');
+  });
+}
+const estado = () => { try { return JSON.parse(N.estado()); } catch (e) { return {}; } };
+
+/* ---- pantallas ---- */
+let pantalla = '';
+function mostrar(p) {
+  pantalla = p;
+  ['login','inicio','terminar'].forEach(x => $('#p-' + x).classList.toggle('oculto', x !== p));
+  window.scrollTo(0, 0);
+  if (p === 'inicio') { pintarEstado(); cargarOrdenes(); }
+}
+window.atras = () => { if (pantalla === 'terminar') { mostrar('inicio'); return true; } return false; };
+
+/* ---- login ---- */
+$('#l-avanzado').onclick = e => { e.preventDefault(); $('#l-serv-caja').classList.toggle('oculto'); };
+$('#l-entrar').onclick = () => {
+  const usuario = $('#l-usuario').value.trim(), pin = $('#l-pin').value.trim();
+  let servidor = ($('#l-servidor').value.trim() || DEF_SERVIDOR).replace(/\/+$/, '');
+  if (!/^https?:\/\//.test(servidor)) servidor = 'https://' + servidor;
+  if (!usuario || !pin) { $('#l-msg').textContent = 'Escriba su usuario y PIN'; return; }
+  $('#l-msg').textContent = 'Entrando…'; $('#l-msg').style.color = 'var(--suave)';
+  const id = 'l' + (++sec);
+  esperas[id] = (c, j) => {
+    $('#l-msg').style.color = '';
+    if (c === 200) { $('#l-pin').value = ''; $('#l-msg').textContent = ''; mostrar('inicio'); }
+    else $('#l-msg').textContent = j.error || 'No se pudo entrar';
+  };
+  N.login(id, servidor, usuario, pin);
+};
+
+/* ---- estado del rastreo ---- */
+function pintarEstado() {
+  const e = estado();
+  $('#i-nombre').textContent = e.nombre || 'Técnico';
+  $('#i-horario').textContent = 'Horario de rastreo: ' + e.hora_inicio + ' a ' + e.hora_fin;
+  let color, titulo, sub;
+  const permisos = e.permiso_ubicacion && e.permiso_fondo;
+  if (!permisos) { color = 'var(--mal)'; titulo = 'Falta permiso de ubicación'; sub = 'Toque "Arreglar" abajo'; }
+  else if (!e.en_horario) { color = '#b8c2cf'; titulo = 'Fuera de horario'; sub = 'No se está enviando su ubicación'; }
+  else if (!e.gps) { color = 'var(--mal)'; titulo = 'GPS apagado'; sub = 'La oficina ve que su GPS está apagado'; }
+  else if (e.activo) { color = 'var(--ok)'; titulo = 'Rastreo activo'; sub = 'Su ubicación se envía a la oficina'; }
+  else { color = 'var(--aviso)'; titulo = 'Iniciando rastreo…'; sub = ''; }
+  const env = e.ultimo_envio ? new Date(e.ultimo_envio).toLocaleTimeString('es-EC', {hour:'2-digit', minute:'2-digit'}) : '—';
+  $('#i-estado').innerHTML = `<div class="estado"><div class="punto" style="background:${color}"></div>
+    <div><b>${titulo}</b><small>${sub}</small><small>Último envío: ${env}${e.pendientes ? ' · ' + e.pendientes + ' por enviar' : ''}</small></div></div>`;
+  const faltas = [];
+  if (!e.permiso_ubicacion) faltas.push('Permitir la ubicación');
+  else if (!e.permiso_fondo) faltas.push('Elegir "Permitir todo el tiempo" en la ubicación');
+  if (!e.permiso_notif) faltas.push('Permitir notificaciones');
+  if (!e.bateria_libre) faltas.push('Quitar el ahorro de batería para esta app');
+  if (!e.gps) faltas.push('Encender el GPS');
+  $('#i-faltas').innerHTML = faltas.length ? `<div class="carta falta"><b>Para que funcione bien falta:</b>
+     <ul style="margin:8px 0 0;padding-left:20px">${faltas.map(f => '<li>' + f + '</li>').join('')}</ul>
+     <button class="btn" onclick="Nativo.arreglar()">Arreglar</button></div>` : '';
+  $('#i-pie').textContent = 'Versión ' + (e.version || '') + ' · ' + (e.servidor || '');
+}
+window.refrescar = () => { if (pantalla === 'inicio') { pintarEstado(); cargarOrdenes(); } };
+setInterval(() => { if (pantalla === 'inicio') pintarEstado(); }, 10000);
+
+/* ---- órdenes ---- */
+let ORDENES = [];
+async function cargarOrdenes() {
+  try { ORDENES = (await pedir('GET', '/api/ordenes')).ordenes; }
+  catch (e) { $('#i-ordenes').innerHTML = `<div class="vacio">${esc(e.message)}</div>`; return; }
+  $('#i-ordenes').innerHTML = ORDENES.map(o => {
+    let botones = '';
+    if (o.estado === 'pendiente') botones = `<button class="btn" data-a="en_camino" data-id="${o.id}">Voy en camino</button>`;
+    if (o.estado === 'en_camino') botones = `<button class="btn" data-a="en_sitio" data-id="${o.id}">Llegué</button>`;
+    if (o.estado === 'en_sitio') botones = `<button class="btn ok" data-a="terminar" data-id="${o.id}">Terminé</button>`;
+    const extra = o.estado !== 'terminada' ? `<div class="fila">
+        <button class="btn sec" data-a="mapa" data-id="${o.id}">Cómo llegar</button>
+        ${o.telefono ? `<button class="btn sec" data-a="llamar" data-id="${o.id}">Llamar</button>` : ''}</div>` : '';
+    return `<div class="carta orden"><h3>${esc(o.tipo)}: ${esc(o.cliente)}</h3>
+      ${o.direccion ? `<p>${esc(o.direccion)}</p>` : ''}${o.notas ? `<p>${esc(o.notas)}</p>` : ''}
+      <span class="chip ${o.estado}">${ESTADO[o.estado]}</span>
+      ${o.duracion_min != null ? `<p>Tiempo en la casa: ${o.duracion_min} min</p>` : ''}
+      ${botones}${extra}</div>`;
+  }).join('') || '<div class="vacio">No tiene órdenes asignadas hoy.</div>';
+  document.querySelectorAll('#i-ordenes [data-a]').forEach(b => b.onclick = () => accion(b.dataset.a, +b.dataset.id, b));
+}
+let ordenTerminar = null;
+async function accion(a, id, boton) {
+  const o = ORDENES.find(x => x.id === id);
+  if (a === 'mapa') { N.mapa(o.lat != null ? String(o.lat) : '', o.lng != null ? String(o.lng) : '', o.direccion || o.cliente); return; }
+  if (a === 'llamar') { N.llamar(o.telefono); return; }
+  if (a === 'terminar') { ordenTerminar = o; $('#t-cliente').textContent = o.cliente; $('#t-nota').value = ''; $('#t-msg').textContent = ''; mostrar('terminar'); return; }
+  boton.disabled = true; boton.textContent = 'Enviando…';
+  const datos = { estado: a };
+  if (a === 'en_sitio') { const u = N.ubicacion(); if (u) { const [lat, lng] = u.split(','); datos.lat = +lat; datos.lng = +lng; } }
+  try { await pedir('POST', '/api/ordenes/' + id, datos); } catch (e) { alert(e.message); }
+  cargarOrdenes();
+}
+$('#t-ok').onclick = async () => {
+  $('#t-ok').disabled = true;
+  try { await pedir('POST', '/api/ordenes/' + ordenTerminar.id, { estado:'terminada', nota:$('#t-nota').value });
+        mostrar('inicio'); }
+  catch (e) { $('#t-msg').textContent = e.message; }
+  $('#t-ok').disabled = false;
+};
+$('#t-cancelar').onclick = () => mostrar('inicio');
+$('#i-recargar').onclick = cargarOrdenes;
+$('#i-salir').onclick = () => {
+  if (!confirm('¿Cerrar sesión? La oficina dejará de ver su ubicación.')) return;
+  const id = 's' + (++sec);
+  esperas[id] = () => mostrar('login');
+  N.salir(id);
+};
+
+/* ---- arranque ---- */
+const e0 = estado();
+$('#l-servidor').value = e0.servidor || DEF_SERVIDOR;
+mostrar(e0.logueado ? 'inicio' : 'login');
+</script>
+</body>
+</html>

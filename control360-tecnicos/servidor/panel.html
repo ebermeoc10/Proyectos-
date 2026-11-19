@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Técnicos · {{EMPRESA}}</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --fondo:#eef2f6; --carta:#ffffff; --texto:#1f2a37; --suave:#64748b; --borde:#d9e1ea;
+    --acento:#3b7a8c; --acento-suave:#e3eff2;
+    --mov:#3f8f6b; --parado:#c98a2b; --sinsenal:#8a94a3; --gps:#b4443d; --fuera:#b8c2cf;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; }
+  body { background:var(--fondo); color:var(--texto);
+         font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; display:flex; flex-direction:column; }
+  header { background:var(--carta); border-bottom:1px solid var(--borde); padding:10px 16px;
+           display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  header h1 { font-size:20px; margin:0; }
+  header .sub { color:var(--suave); font-size:14px; }
+  header .der { margin-left:auto; display:flex; gap:8px; align-items:center; }
+  nav { display:flex; gap:4px; overflow-x:auto; background:var(--carta); padding:0 12px; border-bottom:1px solid var(--borde); }
+  nav button { background:none; border:0; padding:12px 14px; font-size:16px; color:var(--suave); cursor:pointer;
+               border-bottom:3px solid transparent; white-space:nowrap; }
+  nav button.activo { color:var(--acento); border-bottom-color:var(--acento); font-weight:600; }
+  main { flex:1; min-height:0; }
+  .vista { display:none; height:100%; }
+  .vista.activa { display:flex; }
+  .mapa { flex:1; min-height:320px; }
+  .lado { width:360px; max-width:100%; overflow-y:auto; padding:12px; background:var(--fondo); }
+  .carta { background:var(--carta); border:1px solid var(--borde); border-radius:14px; padding:12px 14px; margin-bottom:10px; }
+  .tec { cursor:pointer; display:flex; gap:12px; align-items:center; }
+  .tec:hover { border-color:var(--acento); }
+  .bola { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:700; flex:none; }
+  .tec .info { flex:1; min-width:0; }
+  .tec .nom { font-weight:600; font-size:17px; }
+  .tec .est { font-size:14px; color:var(--suave); }
+  .bat { font-size:13px; color:var(--suave); white-space:nowrap; text-align:right; }
+  .bat.baja { color:var(--gps); font-weight:600; }
+  h2 { font-size:15px; text-transform:uppercase; letter-spacing:.04em; color:var(--suave); margin:16px 4px 8px; }
+  .alerta { font-size:14px; border-left:4px solid var(--parado); }
+  .alerta.alta { border-left-color:var(--gps); }
+  .alerta b { display:block; }
+  .leyenda { display:flex; flex-wrap:wrap; gap:10px; font-size:13px; color:var(--suave); margin:4px 4px 10px; }
+  .leyenda span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; background:var(--c); }
+  .pagina { flex-direction:column; overflow-y:auto; padding:16px; width:100%; max-width:1100px; margin:0 auto; }
+  .fila { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:12px; }
+  label { font-size:14px; color:var(--suave); display:flex; flex-direction:column; gap:4px; }
+  input, select, textarea { font:inherit; padding:10px 12px; border:1px solid var(--borde); border-radius:10px; background:#fff; color:var(--texto); }
+  .btn { font:inherit; padding:10px 16px; border-radius:10px; border:0; background:var(--acento); color:#fff; font-weight:600; cursor:pointer; text-decoration:none; }
+  .btn.sec { background:var(--acento-suave); color:var(--acento); }
+  .btn.peligro { background:#f6e3e1; color:var(--gps); }
+  table { width:100%; border-collapse:collapse; background:var(--carta); border-radius:14px; overflow:hidden; border:1px solid var(--borde); }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--borde); font-size:15px; vertical-align:top; }
+  th { background:#f6f8fb; color:var(--suave); font-weight:600; font-size:13px; text-transform:uppercase; }
+  .chip { display:inline-block; padding:2px 10px; border-radius:20px; font-size:13px; font-weight:600; }
+  .chip.pendiente { background:#eef1f5; color:#5b6676; }
+  .chip.en_camino { background:#e5eef8; color:#3d6aa0; }
+  .chip.en_sitio { background:#fbf0de; color:#9a6a1d; }
+  .chip.terminada { background:#e2f1ea; color:#2f7456; }
+  .resumen { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin-bottom:10px; }
+  .resumen div { background:var(--carta); border:1px solid var(--borde); border-radius:12px; padding:10px; }
+  .resumen b { display:block; font-size:22px; }
+  .resumen small { color:var(--suave); }
+  .vacio { color:var(--suave); padding:16px 4px; }
+  .tabla-scroll { overflow-x:auto; }
+  .msg { color:var(--gps); min-height:1.2em; font-size:14px; }
+  .marca { border-radius:50%; color:#fff; font-weight:700; display:grid; place-items:center; border:3px solid #fff;
+           box-shadow:0 2px 6px rgba(0,0,0,.3); font-size:14px; }
+  @media (max-width: 760px) {
+    .vista.activa { flex-direction:column; }
+    .lado { width:100%; max-height:45%; }
+    .mapa { min-height:55%; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Técnicos en campo</h1>
+    <div class="sub">CONTROL360 · {{EMPRESA}} · <span id="hora"></span></div>
+  </div>
+  <div class="der">
+    <a class="btn sec" href="app" title="Enlace para instalar la app en el celular del técnico">App técnicos</a>
+    <a class="btn sec" href="salir">Salir</a>
+  </div>
+</header>
+<nav>
+  <button data-v="vivo" class="activo">En vivo</button>
+  <button data-v="recorrido">Recorridos</button>
+  <button data-v="ordenes">Órdenes</button>
+  <button data-v="alertas">Alertas</button>
+  <button data-v="tecnicos">Técnicos</button>
+  <button data-v="ajustes">Ajustes</button>
+</nav>
+<main>
+  <!-- EN VIVO -->
+  <section class="vista activa" id="v-vivo">
+    <div class="mapa" id="mapa-vivo"></div>
+    <div class="lado">
+      <div class="leyenda">
+        <span style="--c:var(--mov)">En movimiento</span>
+        <span style="--c:var(--parado)">Parado</span>
+        <span style="--c:var(--sinsenal)">Sin señal</span>
+        <span style="--c:var(--gps)">GPS apagado</span>
+      </div>
+      <div id="lista-vivo"></div>
+      <h2>Alertas de hoy</h2>
+      <div id="alertas-vivo"></div>
+    </div>
+  </section>
+
+  <!-- RECORRIDOS -->
+  <section class="vista" id="v-recorrido">
+    <div class="mapa" id="mapa-rec"></div>
+    <div class="lado">
+      <div class="carta">
+        <div class="fila" style="margin:0">
+          <label style="flex:1">Técnico <select id="rec-tec"></select></label>
+          <label>Fecha <input type="date" id="rec-fecha"></label>
+        </div>
+      </div>
+      <div class="resumen" id="rec-resumen"></div>
+      <h2>Paradas (15 min o más)</h2>
+      <div id="rec-paradas"></div>
+      <h2>Órdenes del día</h2>
+      <div id="rec-ordenes"></div>
+    </div>
+  </section>
+
+  <!-- ÓRDENES -->
+  <section class="vista" id="v-ordenes">
+    <div class="pagina">
+      <div class="carta">
+        <h2 style="margin-top:0">Nueva orden de trabajo</h2>
+        <div class="fila">
+          <label>Tipo <select id="o-tipo"><option>Instalación</option><option>Avería</option><option>Retiro de equipos</option><option>Cambio de equipo</option><option>Otro</option></select></label>
+          <label style="flex:1;min-width:180px">Cliente <input id="o-cliente"></label>
+          <label>Teléfono <input id="o-tel" inputmode="tel"></label>
+        </div>
+        <div class="fila">
+          <label style="flex:1;min-width:220px">Dirección <input id="o-dir"></label>
+          <label>Técnico <select id="o-tec"></select></label>
+          <label>Fecha <input type="date" id="o-fecha"></label>
+        </div>
+        <div class="fila">
+          <label style="flex:1;min-width:220px">Notas <input id="o-notas"></label>
+          <label>Ubicación <input id="o-ubi" placeholder="Toque el mapa o pegue lat, lng" style="min-width:230px"></label>
+        </div>
+        <div id="mapa-orden" style="height:240px;border-radius:12px;margin-bottom:12px"></div>
+        <div class="fila"><button class="btn" id="o-guardar">Guardar orden</button><span class="msg" id="o-msg"></span></div>
+      </div>
+      <div class="fila">
+        <label>Ver órdenes del día <input type="date" id="o-ver-fecha"></label>
+      </div>
+      <div class="tabla-scroll"><table id="tabla-ordenes"></table></div>
+    </div>
+  </section>
+
+  <!-- ALERTAS -->
+  <section class="vista" id="v-alertas">
+    <div class="pagina">
+      <div class="fila"><label>Fecha <input type="date" id="al-fecha"></label></div>
+      <div id="lista-alertas"></div>
+    </div>
+  </section>
+
+  <!-- TÉCNICOS -->
+  <section class="vista" id="v-tecnicos">
+    <div class="pagina">
+      <div class="carta">
+        <h2 style="margin-top:0">Agregar técnico</h2>
+        <div class="fila">
+          <label style="flex:1;min-width:180px">Nombre <input id="t-nombre"></label>
+          <label>Usuario <input id="t-usuario" autocapitalize="none"></label>
+          <label>PIN (4 a 6 números) <input id="t-pin" inputmode="numeric" maxlength="6"></label>
+          <label>Teléfono <input id="t-tel" inputmode="tel"></label>
+          <button class="btn" id="t-guardar">Agregar</button>
+        </div>
+        <div class="msg" id="t-msg"></div>
+        <p style="color:var(--suave);font-size:14px;margin:4px 0 0">
+          El técnico instala la app desde el botón <b>App técnicos</b> (arriba) y entra con su usuario y PIN.
+        </p>
+      </div>
+      <div class="tabla-scroll"><table id="tabla-tecnicos"></table></div>
+    </div>
+  </section>
+
+  <!-- AJUSTES -->
+  <section class="vista" id="v-ajustes">
+    <div class="pagina">
+      <div class="carta">
+        <h2 style="margin-top:0">Horario de rastreo</h2>
+        <p style="color:var(--suave);font-size:14px">Fuera de este horario la app no envía la ubicación.</p>
+        <div class="fila">
+          <label>Desde <input type="time" id="a-ini"></label>
+          <label>Hasta <input type="time" id="a-fin"></label>
+          <label>Parada desde (minutos) <input type="number" id="a-parada" min="5" max="120"></label>
+        </div>
+        <div class="fila" id="a-dias"></div>
+        <div class="fila"><button class="btn" id="a-guardar">Guardar ajustes</button><span class="msg" id="a-msg"></span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const COLOR = { movimiento:'var(--mov)', parado:'var(--parado)', sin_senal:'var(--sinsenal)',
+                gps_apagado:'var(--gps)', fuera:'var(--fuera)', sin_datos:'var(--fuera)' };
+const COLOR_HEX = { movimiento:'#3f8f6b', parado:'#c98a2b', sin_senal:'#8a94a3', gps_apagado:'#b4443d', fuera:'#b8c2cf', sin_datos:'#b8c2cf' };
+const DIAS = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+const ESTADO_ORDEN = { pendiente:'Pendiente', en_camino:'En camino', en_sitio:'En el sitio', terminada:'Terminada' };
+const CENTRO = [-3.2581, -79.9554]; // Machala
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const iniciales = n => n.split(/\s+/).filter(Boolean).slice(0,2).map(p => p[0].toUpperCase()).join('');
+const fechaHoy = () => new Date(Date.now() - 5*3600e3).toISOString().slice(0,10);
+
+async function api(url, datos) {
+  const op = datos ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(datos) } : {};
+  const r = await fetch(url, op);
+  if (r.status === 401) { location.href = 'entrar'; throw new Error('sesión'); }
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'Error');
+  return j;
+}
+
+function capaMapa(id) {
+  const m = L.map(id, { zoomControl:true }).setView(CENTRO, 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom:19, attribution:'&copy; OpenStreetMap' }).addTo(m);
+  return m;
+}
+function icono(texto, color, tam=38) {
+  return L.divIcon({ className:'', iconSize:[tam,tam], iconAnchor:[tam/2,tam/2],
+    html:`<div class="marca" style="width:${tam}px;height:${tam}px;background:${color}">${esc(texto)}</div>` });
+}
+
+/* ---------------- pestañas ---------------- */
+let vista = 'vivo';
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('activo', x === b));
+  document.querySelectorAll('.vista').forEach(x => x.classList.toggle('activa', x.id === 'v-' + b.dataset.v));
+  vista = b.dataset.v;
+  setTimeout(() => { [mVivo, mRec, mOrden].forEach(m => m && m.invalidateSize()); }, 50);
+  if (vista === 'recorrido') cargarRecorrido();
+  if (vista === 'ordenes') cargarOrdenes();
+  if (vista === 'alertas') cargarAlertas();
+  if (vista === 'tecnicos') cargarTecnicos();
+  if (vista === 'ajustes') cargarAjustes();
+});
+
+/* ---------------- técnicos (lista base) ---------------- */
+let TECNICOS = [];
+async function listaTecnicos() {
+  TECNICOS = (await api('panel/api/tecnicos')).tecnicos;
+  const activos = TECNICOS.filter(t => t.activo);
+  const ops = activos.map(t => `<option value="${t.id}">${esc(t.nombre)}</option>`).join('');
+  const recSel = $('#rec-tec').value;
+  $('#rec-tec').innerHTML = ops;
+  if (recSel) $('#rec-tec').value = recSel;
+  $('#o-tec').innerHTML = '<option value="">Sin asignar</option>' + ops;
+}
+
+/* ---------------- EN VIVO ---------------- */
+const mVivo = capaMapa('mapa-vivo');
+const marcas = {};
+let primeraVez = true;
+async function cargarVivo() {
+  let d;
+  try { d = await api('panel/api/vivo'); } catch (e) { return; }
+  $('#hora').textContent = (d.en_horario ? 'En horario' : 'Fuera de horario') + ' · ' + d.hora;
+  const vistos = new Set();
+  const lista = d.tecnicos.map(t => {
+    const ini = iniciales(t.nombre);
+    if (t.lat != null) {
+      vistos.add(t.id);
+      const pop = `<b>${esc(t.nombre)}</b><br>${esc(t.texto)}<br>Último reporte: ${t.ultimo_txt}` +
+                  (t.bateria != null ? `<br>Batería: ${t.bateria}%${t.cargando ? ' (cargando)' : ''}` : '') +
+                  `<br>Recorrido hoy: ${t.km} km` + (t.telefono ? `<br><a href="tel:${esc(t.telefono)}">Llamar</a>` : '');
+      if (!marcas[t.id]) marcas[t.id] = L.marker([t.lat, t.lng]).addTo(mVivo);
+      marcas[t.id].setLatLng([t.lat, t.lng]).setIcon(icono(ini, COLOR_HEX[t.estado])).bindPopup(pop);
+    }
+    const bajo = t.bateria != null && t.bateria <= 15 && !t.cargando;
+    return `<div class="carta tec" data-id="${t.id}">
+      <div class="bola" style="background:${COLOR[t.estado]}">${esc(ini)}</div>
+      <div class="info"><div class="nom">${esc(t.nombre)}</div><div class="est">${esc(t.texto)}${t.ultimo_txt ? ' · ' + t.ultimo_txt : ''}</div></div>
+      <div class="bat ${bajo ? 'baja' : ''}">${t.bateria != null ? '🔋 ' + t.bateria + '%' : ''}${t.cargando ? '<br>cargando' : ''}<br>${t.km} km</div>
+    </div>`;
+  });
+  Object.keys(marcas).forEach(id => { if (!vistos.has(+id)) { mVivo.removeLayer(marcas[id]); delete marcas[id]; } });
+  $('#lista-vivo').innerHTML = lista.join('') || '<div class="vacio">Aún no hay técnicos. Agréguelos en la pestaña Técnicos.</div>';
+  document.querySelectorAll('#lista-vivo .tec').forEach(el => el.onclick = () => {
+    const m = marcas[el.dataset.id];
+    if (m) { mVivo.setView(m.getLatLng(), 16); m.openPopup(); }
+  });
+  if (primeraVez && vistos.size) {
+    mVivo.fitBounds(L.featureGroup(Object.values(marcas)).getBounds().pad(0.3), { maxZoom:15 });
+    primeraVez = false;
+  }
+  $('#alertas-vivo').innerHTML = d.alertas.map(a =>
+    `<div class="carta alerta ${a.nivel}"><b>${esc(a.tecnico)} · ${a.hora}</b>${esc(a.texto)}</div>`).join('')
+    || '<div class="vacio">Sin alertas hoy.</div>';
+}
+
+/* ---------------- RECORRIDOS ---------------- */
+const mRec = capaMapa('mapa-rec');
+let capaRec = L.layerGroup().addTo(mRec);
+$('#rec-fecha').value = fechaHoy();
+$('#rec-tec').onchange = cargarRecorrido;
+$('#rec-fecha').onchange = cargarRecorrido;
+async function cargarRecorrido() {
+  const tid = $('#rec-tec').value;
+  if (!tid) { $('#rec-resumen').innerHTML = '<div class="vacio">Agregue técnicos primero.</div>'; return; }
+  const d = await api(`panel/api/recorrido?tecnico=${tid}&fecha=${$('#rec-fecha').value}`);
+  capaRec.clearLayers();
+  const r = d.resumen;
+  $('#rec-resumen').innerHTML = `
+    <div><b>${r.km} km</b><small>recorridos</small></div>
+    <div><b>${r.inicio || '—'} – ${r.fin || '—'}</b><small>primer y último reporte</small></div>
+    <div><b>${r.paradas}</b><small>paradas · ${r.min_parado} min</small></div>
+    <div><b>${r.min_parado_fuera} min</b><small>parado fuera de órdenes</small></div>
+    <div><b>${r.ordenes_hechas}/${r.ordenes_total}</b><small>órdenes terminadas</small></div>`;
+  if (d.puntos.length) {
+    const linea = L.polyline(d.puntos.map(p => [p[0], p[1]]), { color:'#3b7a8c', weight:4, opacity:.8 }).addTo(capaRec);
+    L.circleMarker(d.puntos[0], { radius:7, color:'#3f8f6b', fillOpacity:1 }).bindPopup('Inicio ' + d.puntos[0][2]).addTo(capaRec);
+    const u = d.puntos[d.puntos.length - 1];
+    L.circleMarker(u, { radius:7, color:'#1f2a37', fillOpacity:1 }).bindPopup('Último ' + u[2]).addTo(capaRec);
+    mRec.fitBounds(linea.getBounds().pad(0.2));
+  }
+  d.paradas.forEach((p, i) => {
+    L.marker([p.lat, p.lng], { icon: icono(i + 1, p.orden ? '#3b7a8c' : '#c98a2b', 30) })
+      .bindPopup(`<b>Parada ${i + 1}</b><br>${p.desde_txt} a ${p.hasta_txt} (${p.minutos} min)` +
+                 (p.orden ? `<br>En orden: ${esc(p.orden)}` : '<br>Fuera de una orden'))
+      .addTo(capaRec);
+  });
+  d.ordenes.forEach(o => { if (o.lat != null)
+    L.circleMarker([o.lat, o.lng], { radius:9, color:'#3d6aa0', weight:2, fillOpacity:.15 })
+      .bindPopup(`<b>${esc(o.tipo)}: ${esc(o.cliente)}</b><br>${esc(ESTADO_ORDEN[o.estado])}`).addTo(capaRec); });
+  $('#rec-paradas').innerHTML = d.paradas.map((p, i) =>
+    `<div class="carta alerta ${p.orden ? '' : 'alta'}" style="${p.orden ? 'border-left-color:var(--acento)' : ''};cursor:pointer" data-lat="${p.lat}" data-lng="${p.lng}">
+      <b>${i + 1}. ${p.desde_txt} a ${p.hasta_txt} · ${p.minutos} min</b>${p.orden ? 'En orden: ' + esc(p.orden) : 'Fuera de una orden'}</div>`).join('')
+    || '<div class="vacio">Sin paradas largas.</div>';
+  document.querySelectorAll('#rec-paradas .carta').forEach(el => el.onclick = () => mRec.setView([+el.dataset.lat, +el.dataset.lng], 17));
+  $('#rec-ordenes').innerHTML = d.ordenes.map(o =>
+    `<div class="carta"><b>${esc(o.tipo)}: ${esc(o.cliente)}</b><br><span class="chip ${o.estado}">${ESTADO_ORDEN[o.estado]}</span>
+      ${o.llegada_txt ? ' Llegó ' + o.llegada_txt : ''}${o.terminada_txt ? ' · Terminó ' + o.terminada_txt : ''}
+      ${o.duracion_min != null ? ' · <b>' + o.duracion_min + ' min</b>' : ''}</div>`).join('')
+    || '<div class="vacio">Sin órdenes ese día.</div>';
+}
+
+/* ---------------- ÓRDENES ---------------- */
+let mOrden = null, marcaOrden = null;
+$('#o-fecha').value = fechaHoy();
+$('#o-ver-fecha').value = fechaHoy();
+$('#o-ver-fecha').onchange = cargarOrdenes;
+function ponerUbicacion(lat, lng) {
+  $('#o-ubi').value = lat.toFixed(6) + ', ' + lng.toFixed(6);
+  if (!marcaOrden) marcaOrden = L.marker([lat, lng]).addTo(mOrden); else marcaOrden.setLatLng([lat, lng]);
+}
+$('#o-ubi').onchange = () => {
+  const m = $('#o-ubi').value.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+  if (m) { ponerUbicacion(+m[1], +m[2]); mOrden.setView([+m[1], +m[2]], 16); }
+};
+async function cargarOrdenes() {
+  if (!mOrden) {
+    mOrden = capaMapa('mapa-orden');
+    mOrden.on('click', e => ponerUbicacion(e.latlng.lat, e.latlng.lng));
+  }
+  setTimeout(() => mOrden.invalidateSize(), 50);
+  const d = await api('panel/api/ordenes?fecha=' + $('#o-ver-fecha').value);
+  const opsTec = id => '<option value="">Sin asignar</option>' + TECNICOS.filter(t => t.activo)
+      .map(t => `<option value="${t.id}" ${t.id === id ? 'selected' : ''}>${esc(t.nombre)}</option>`).join('');
+  $('#tabla-ordenes').innerHTML = '<tr><th>Orden</th><th>Técnico</th><th>Estado</th><th>Tiempos</th><th></th></tr>' +
+    (d.ordenes.map(o => `<tr>
+      <td><b>${esc(o.tipo)}: ${esc(o.cliente)}</b><br><small>${esc(o.direccion)} ${o.telefono ? '· ' + esc(o.telefono) : ''}</small>
+          ${o.notas ? '<br><small>' + esc(o.notas) + '</small>' : ''}${o.nota_tecnico ? '<br><small>Técnico: ' + esc(o.nota_tecnico) + '</small>' : ''}</td>
+      <td><select data-asignar="${o.id}">${opsTec(o.tecnico_id)}</select></td>
+      <td><span class="chip ${o.estado}">${ESTADO_ORDEN[o.estado]}</span></td>
+      <td>${o.llegada_txt ? 'Llegó ' + o.llegada_txt : '—'}${o.terminada_txt ? '<br>Terminó ' + o.terminada_txt : ''}
+          ${o.duracion_min != null ? '<br><b>' + o.duracion_min + ' min en la casa</b>' : ''}</td>
+      <td><button class="btn peligro" data-borrar="${o.id}">Borrar</button></td></tr>`).join('')
+     || '<tr><td colspan="5" class="vacio">No hay órdenes ese día.</td></tr>');
+  document.querySelectorAll('[data-asignar]').forEach(s => s.onchange = async () => {
+    await api('panel/api/ordenes/' + s.dataset.asignar, { tecnico_id: s.value ? +s.value : null });
+  });
+  document.querySelectorAll('[data-borrar]').forEach(b => b.onclick = async () => {
+    if (b.dataset.ok) { await api('panel/api/ordenes/' + b.dataset.borrar, { borrar:true }); cargarOrdenes(); }
+    else { b.dataset.ok = 1; b.textContent = '¿Seguro?'; }
+  });
+}
+$('#o-guardar').onclick = async () => {
+  const m = $('#o-ubi').value.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+  try {
+    await api('panel/api/ordenes', {
+      tipo: $('#o-tipo').value, cliente: $('#o-cliente').value, telefono: $('#o-tel').value,
+      direccion: $('#o-dir').value, notas: $('#o-notas').value, fecha: $('#o-fecha').value,
+      tecnico_id: $('#o-tec').value ? +$('#o-tec').value : null,
+      lat: m ? +m[1] : null, lng: m ? +m[2] : null });
+    ['#o-cliente','#o-tel','#o-dir','#o-notas','#o-ubi'].forEach(s => $(s).value = '');
+    if (marcaOrden) { mOrden.removeLayer(marcaOrden); marcaOrden = null; }
+    $('#o-msg').textContent = '';
+    $('#o-ver-fecha').value = $('#o-fecha').value;
+    cargarOrdenes();
+  } catch (e) { $('#o-msg').textContent = e.message; }
+};
+
+/* ---------------- ALERTAS ---------------- */
+$('#al-fecha').value = fechaHoy();
+$('#al-fecha').onchange = cargarAlertas;
+async function cargarAlertas() {
+  const d = await api('panel/api/alertas?fecha=' + $('#al-fecha').value);
+  $('#lista-alertas').innerHTML = d.alertas.map(a =>
+    `<div class="carta alerta ${a.nivel}" style="${a.nivel === 'info' ? 'border-left-color:var(--borde)' : ''}">
+      <b>${a.hora} · ${esc(a.tecnico)}</b>${esc(a.texto)}</div>`).join('') || '<div class="vacio">Sin alertas ese día.</div>';
+}
+
+/* ---------------- TÉCNICOS ---------------- */
+async function cargarTecnicos() {
+  await listaTecnicos();
+  $('#tabla-tecnicos').innerHTML = '<tr><th>Nombre</th><th>Usuario</th><th>Teléfono</th><th>Estado</th><th>Acciones</th></tr>' +
+    (TECNICOS.map(t => `<tr>
+      <td><b>${esc(t.nombre)}</b></td><td>${esc(t.usuario)}</td><td>${esc(t.telefono)}</td>
+      <td>${t.activo ? 'Activo' : 'Desactivado'}</td>
+      <td><button class="btn sec" data-pin="${t.id}">Cambiar PIN</button>
+          <button class="btn ${t.activo ? 'peligro' : 'sec'}" data-act="${t.id}" data-v="${t.activo ? 0 : 1}">${t.activo ? 'Desactivar' : 'Activar'}</button></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="vacio">Sin técnicos todavía.</td></tr>');
+  document.querySelectorAll('[data-pin]').forEach(b => b.onclick = async () => {
+    const pin = prompt('Nuevo PIN (4 a 6 números):');
+    if (pin) { try { await api('panel/api/tecnicos/' + b.dataset.pin, { pin }); $('#t-msg').textContent = 'PIN cambiado. El técnico debe volver a entrar.'; }
+               catch (e) { $('#t-msg').textContent = e.message; } }
+  });
+  document.querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
+    await api('panel/api/tecnicos/' + b.dataset.act, { activo: +b.dataset.v }); cargarTecnicos();
+  });
+}
+$('#t-guardar').onclick = async () => {
+  try {
+    await api('panel/api/tecnicos', { nombre:$('#t-nombre').value, usuario:$('#t-usuario').value,
+                                      pin:$('#t-pin').value, telefono:$('#t-tel').value });
+    ['#t-nombre','#t-usuario','#t-pin','#t-tel'].forEach(s => $(s).value = '');
+    $('#t-msg').textContent = '';
+    cargarTecnicos(); cargarVivo();
+  } catch (e) { $('#t-msg').textContent = e.message; }
+};
+
+/* ---------------- AJUSTES ---------------- */
+async function cargarAjustes() {
+  const a = await api('panel/api/ajustes');
+  $('#a-ini').value = a.hora_inicio; $('#a-fin').value = a.hora_fin; $('#a-parada').value = a.minutos_parada;
+  $('#a-dias').innerHTML = DIAS.map((d, i) =>
+    `<label style="flex-direction:row;align-items:center;gap:6px;font-size:16px;color:var(--texto)">
+       <input type="checkbox" value="${i}" ${a.dias.includes(i) ? 'checked' : ''}> ${d}</label>`).join('');
+}
+$('#a-guardar').onclick = async () => {
+  const dias = [...document.querySelectorAll('#a-dias input:checked')].map(x => +x.value);
+  await api('panel/api/ajustes', { hora_inicio:$('#a-ini').value, hora_fin:$('#a-fin').value,
+                                   minutos_parada:+$('#a-parada').value || 15, dias });
+  $('#a-msg').style.color = 'var(--mov)'; $('#a-msg').textContent = 'Guardado. Las apps lo toman en su próximo envío.';
+};
+
+/* ---------------- arranque ---------------- */
+listaTecnicos().then(cargarVivo);
+setInterval(() => { if (vista === 'vivo') cargarVivo(); }, 15000);
+</script>
+</body>
+</html>

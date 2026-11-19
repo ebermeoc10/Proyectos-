@@ -1,0 +1,32 @@
+name: Armar APK de Técnicos Orange
+on:
+  push:
+    paths: ['control360-tecnicos/android/**', '.github/workflows/apk-tecnicos.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.10.2' }
+      - name: Armar APK
+        run: cd control360-tecnicos/android && gradle assembleDebug --no-daemon
+      - name: Renombrar
+        run: |
+          mkdir out
+          cp control360-tecnicos/android/app/build/outputs/apk/debug/*.apk out/TecnicosOrange.apk
+      - name: Publicar descarga
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tecnicos-orange
+          name: Técnicos Orange (Android)
+          make_latest: false
+          body: |
+            App de los técnicos de Orange (CONTROL360). Descarga directa:
+            https://github.com/${{ github.repository }}/releases/download/tecnicos-orange/TecnicosOrange.apk
+          files: out/TecnicosOrange.apk
