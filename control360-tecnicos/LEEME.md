@@ -26,6 +26,19 @@ Descarga de la app: https://github.com/ebermeoc10/Proyectos-/releases/download/t
 
 Para quitarlo: devolver el WSGI al contenido de `wsgi_respaldo.py` y recargar.
 
+## Fichas de clientes (desde la app 1.1.0)
+
+El técnico manda desde la app un **cliente nuevo** o **cambios de un cliente** (nombre, cédula,
+teléfono, dirección, IP, ubicación GPS y foto de la casa). Quedan en la pestaña **Fichas** del panel:
+
+- *Actualizar*: "Aplicar cambios" guarda nombre, cédula, teléfono, dirección, foto y ubicación en
+  CONTROL360. La IP no se cambia sola (hay que hacerlo en el MikroTik/CONTROL360).
+- *Nuevo*: se elige valor, tipo, red e IP (botón "Ver IPs libres" consulta el MikroTik) y
+  "Crear en CONTROL360" usa el formulario normal de alta (reserva la IP y arma el cobro);
+  luego se le pegan la foto y la ubicación de la casa.
+
+El WSGI llama `tecnicos.configurar_control360(_c360.db, 1, ...)` (1 = Orange.Net).
+
 ## Primer uso
 
 1. Panel → **Técnicos** → agregar cada técnico con usuario y PIN.
