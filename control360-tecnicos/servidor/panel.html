@@ -67,6 +67,18 @@
   .vacio { color:var(--suave); padding:16px 4px; }
   .tabla-scroll { overflow-x:auto; }
   .msg { color:var(--gps); min-height:1.2em; font-size:14px; }
+  .oculto { display:none !important; }
+  .badge { display:inline-block; min-width:20px; padding:0 6px; border-radius:10px; background:var(--gps); color:#fff;
+           font-size:12px; font-weight:700; text-align:center; }
+  .badge:empty { display:none; }
+  .ficha { display:grid; grid-template-columns: 1fr 220px; gap:14px; }
+  .ficha img { width:100%; border-radius:10px; cursor:zoom-in; }
+  .ficha dl { display:grid; grid-template-columns:110px 1fr; gap:4px 10px; margin:8px 0; font-size:15px; }
+  .ficha dt { color:var(--suave); }
+  .ficha dd { margin:0; }
+  .ficha .cambio { background:#fbf0de; border-radius:6px; padding:0 4px; }
+  .ficha .antes { color:var(--suave); text-decoration:line-through; font-size:13px; margin-left:6px; }
+  @media (max-width: 760px) { .ficha { grid-template-columns:1fr; } }
   .marca { border-radius:50%; color:#fff; font-weight:700; display:grid; place-items:center; border:3px solid #fff;
            box-shadow:0 2px 6px rgba(0,0,0,.3); font-size:14px; }
   @media (max-width: 760px) {
@@ -91,6 +103,7 @@
   <button data-v="vivo" class="activo">En vivo</button>
   <button data-v="recorrido">Recorridos</button>
   <button data-v="ordenes">Órdenes</button>
+  <button data-v="fichas">Fichas <span id="fichas-n" class="badge"></span></button>
   <button data-v="alertas">Alertas</button>
   <button data-v="tecnicos">Técnicos</button>
   <button data-v="ajustes">Ajustes</button>
@@ -156,6 +169,17 @@
         <label>Ver órdenes del día <input type="date" id="o-ver-fecha"></label>
       </div>
       <div class="tabla-scroll"><table id="tabla-ordenes"></table></div>
+    </div>
+  </section>
+
+  <!-- FICHAS -->
+  <section class="vista" id="v-fichas">
+    <div class="pagina">
+      <div class="fila">
+        <label>Ver <select id="fi-estado"><option value="pendiente">Pendientes</option><option value="aprobada">Aprobadas</option><option value="rechazada">Rechazadas</option></select></label>
+        <span style="color:var(--suave);font-size:14px">Clientes nuevos y cambios que mandan los técnicos desde la app.</span>
+      </div>
+      <div id="lista-fichas"></div>
     </div>
   </section>
 
@@ -255,6 +279,7 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   if (vista === 'recorrido') cargarRecorrido();
   if (vista === 'ordenes') cargarOrdenes();
   if (vista === 'alertas') cargarAlertas();
+  if (vista === 'fichas') cargarFichas();
   if (vista === 'tecnicos') cargarTecnicos();
   if (vista === 'ajustes') cargarAjustes();
 });
@@ -414,6 +439,123 @@ $('#o-guardar').onclick = async () => {
   } catch (e) { $('#o-msg').textContent = e.message; }
 };
 
+/* ---------------- FICHAS ---------------- */
+let EMPRESA_ID = null;
+$('#fi-estado').onchange = cargarFichas;
+async function contarFichas() {
+  try { const d = await api('panel/api/fichas'); $('#fichas-n').textContent = d.pendientes || ''; } catch (e) {}
+}
+function filaDato(et, nuevo, antes) {
+  const cambia = antes !== undefined && (nuevo || '') && nuevo !== antes;
+  return `<dt>${et}</dt><dd><span class="${cambia ? 'cambio' : ''}">${esc(nuevo || '—')}</span>${cambia && antes ? `<span class="antes">${esc(antes)}</span>` : ''}</dd>`;
+}
+async function cargarFichas() {
+  const estado = $('#fi-estado').value;
+  const d = await api('panel/api/fichas?estado=' + estado);
+  EMPRESA_ID = d.empresa_id;
+  $('#fichas-n').textContent = d.pendientes || '';
+  if (!d.fichas.length) { $('#lista-fichas').innerHTML = '<div class="vacio">No hay fichas.</div>'; return; }
+  $('#lista-fichas').innerHTML = d.fichas.map(f => {
+    const A = f.antes || {};
+    const mapa = f.lat != null ? `<a href="https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lng}" target="_blank">Ver en el mapa</a>` : 'Sin ubicación';
+    const titulo = f.tipo === 'nuevo' ? 'Cliente nuevo' : 'Actualizar cliente';
+    let acciones = '';
+    if (estado === 'pendiente' && f.tipo === 'nuevo') acciones = `
+      <div class="fila" style="margin-top:10px">
+        <label>Valor mensual $ <input data-k="valor" value="20" inputmode="decimal" style="width:90px"></label>
+        <label>Tipo <select data-k="tipo_cli"><option value="residential">Residencial</option><option value="corporate">Corporativo</option></select></label>
+        <label>Red <select data-k="red"><option value="orange">Orange.Net</option><option value="sta_ines">Orange Sta. Inés</option><option value="external">Otra red</option></select></label>
+        <label>Cobro <select data-k="frec"><option value="monthly">Cada mes</option><option value="once">Solo esta vez</option></select></label>
+      </div>
+      <div class="fila">
+        <label>IP <input data-k="ip" value="${esc(f.ip)}" list="ips-${f.id}" style="width:160px"><datalist id="ips-${f.id}"></datalist></label>
+        <button class="btn sec" data-ips="${f.id}">Ver IPs libres</button>
+        <label class="ext oculto">Nombre de la red <input data-k="red_nombre"></label>
+        <label class="ext oculto">Usuario <input data-k="ext_user"></label>
+      </div>
+      <div class="fila"><button class="btn" data-crear="${f.id}">Crear en CONTROL360</button>
+        <button class="btn peligro" data-rech="${f.id}">Rechazar</button><span class="msg" id="fm-${f.id}"></span></div>`;
+    if (estado === 'pendiente' && f.tipo === 'actualizar') acciones = `
+      <p style="font-size:14px;color:var(--suave);margin:6px 0">Se guardan nombre, cédula, teléfono, dirección, foto y ubicación de la casa.
+      ${f.ip && f.ip !== A.ip ? '<b>La IP no se cambia sola</b>: cámbiela en el MikroTik / CONTROL360 si corresponde.' : ''}</p>
+      <div class="fila"><button class="btn" data-aplicar="${f.id}">Aplicar cambios</button>
+        <button class="btn peligro" data-rech="${f.id}">Rechazar</button><span class="msg" id="fm-${f.id}"></span></div>`;
+    return `<div class="carta ficha" data-f="${f.id}">
+      <div>
+        <b style="font-size:17px">${titulo}: ${esc(f.nombre || A.nombre || '')}</b>
+        <div style="color:var(--suave);font-size:14px">${esc(f.tecnico)} · ${f.creada_txt}${f.cliente_id ? ' · cliente #' + f.cliente_id : ''}</div>
+        <dl>
+          ${filaDato('Nombre', f.nombre, A.nombre)}${filaDato('Cédula', f.cedula, A.cedula)}
+          ${filaDato('Teléfono', f.telefono, A.telefono)}${filaDato('Dirección', f.direccion, A.direccion)}
+          ${filaDato('IP', f.ip, A.ip)}<dt>Casa</dt><dd>${mapa}</dd>
+          ${f.notas ? `<dt>Notas</dt><dd>${esc(f.notas)}</dd>` : ''}
+          ${f.nota_oficina ? `<dt>Oficina</dt><dd>${esc(f.nota_oficina)}</dd>` : ''}
+        </dl>${acciones}
+      </div>
+      <div>${f.tiene_foto ? `<a href="panel/fichas/${f.id}/foto" target="_blank"><img src="panel/fichas/${f.id}/foto" alt="Foto de la casa"></a>` : '<div class="vacio">Sin foto</div>'}</div>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.ficha [data-k=red]').forEach(sel => sel.onchange = () => {
+    sel.closest('.ficha').querySelectorAll('.ext').forEach(x => x.classList.toggle('oculto', sel.value !== 'external'));
+  });
+  document.querySelectorAll('[data-ips]').forEach(b => b.onclick = () => verIps(b.dataset.ips));
+  document.querySelectorAll('[data-rech]').forEach(b => b.onclick = async () => {
+    if (!b.dataset.ok) { b.dataset.ok = 1; b.textContent = '¿Seguro?'; return; }
+    await api('panel/api/fichas/' + b.dataset.rech, { accion:'rechazar' }); cargarFichas();
+  });
+  document.querySelectorAll('[data-aplicar]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { await api('panel/api/fichas/' + b.dataset.aplicar, { accion:'aplicar' }); cargarFichas(); }
+    catch (e) { $('#fm-' + b.dataset.aplicar).textContent = e.message; b.disabled = false; }
+  });
+  document.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => crearCliente(b.dataset.crear, b));
+}
+async function verIps(id) {
+  const caja = document.querySelector(`.ficha[data-f="${id}"]`);
+  const red = caja.querySelector('[data-k=red]').value;
+  const msg = $('#fm-' + id);
+  if (red === 'external') { msg.textContent = 'En otra red la IP la pone usted.'; return; }
+  msg.style.color = 'var(--suave)'; msg.textContent = 'Consultando el MikroTik…';
+  try {
+    const r = await fetch(`/company/${EMPRESA_ID}/network/available-ips?network_kind=${red}`);
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.message || 'No se pudo consultar');
+    const ips = j.groups.flatMap(g => g.addresses);
+    $('#ips-' + id).innerHTML = ips.slice(0, 300).map(ip => `<option value="${ip}">`).join('');
+    const actual = caja.querySelector('[data-k=ip]').value;
+    msg.style.color = ips.includes(actual) || !actual ? 'var(--mov)' : 'var(--gps)';
+    msg.textContent = ips.length + ' IPs libres. ' + (actual ? (ips.includes(actual) ? 'La IP del técnico está libre.' : 'La IP del técnico NO está libre: elija otra.') : 'Toque la casilla IP para elegir.');
+  } catch (e) { msg.style.color = ''; msg.textContent = e.message; }
+}
+async function crearCliente(id, boton) {
+  const caja = document.querySelector(`.ficha[data-f="${id}"]`);
+  const v = k => (caja.querySelector(`[data-k=${k}]`) || {}).value || '';
+  const fichas = (await api('panel/api/fichas?estado=pendiente')).fichas;
+  const f = fichas.find(x => x.id === +id);
+  const msg = $('#fm-' + id);
+  if (!f) { cargarFichas(); return; }
+  const fd = new FormData();
+  const datos = { company: EMPRESA_ID, csrf: CSRF, name: f.nombre, document: f.cedula, phone: f.telefono,
+    address: f.direccion, notes: f.notas, network_ip: v('ip'), birth_date: '', billing_frequency: v('frec'),
+    value: v('valor').replace(',', '.'), client_type: v('tipo_cli'), network_kind: v('red'),
+    network_name: v('red') === 'external' ? v('red_nombre') : '', external_username: v('ext_user'),
+    external_ip: v('red') === 'external' ? v('ip') : '' };
+  Object.entries(datos).forEach(([k, x]) => fd.append(k, x ?? ''));
+  boton.disabled = true; msg.style.color = 'var(--suave)'; msg.textContent = 'Creando cliente y reservando la IP…';
+  try {
+    const r = await fetch('/clients', { method:'POST', body:fd, redirect:'manual' });
+    if (r.type !== 'opaqueredirect' && !(r.status >= 300 && r.status < 400)) {
+      const t = await r.text();
+      const doc = new DOMParser().parseFromString(t, 'text/html');
+      const m = doc.querySelector('.flash, .alert, .error, .msg, p');
+      throw new Error((m && m.textContent.trim()) || ('CONTROL360 no aceptó el cliente (código ' + r.status + ').'));
+    }
+    const j = await api('panel/api/fichas/' + id, { accion:'vincular', nombre: f.nombre });
+    msg.style.color = 'var(--mov)'; msg.textContent = 'Cliente creado (#' + j.cliente_id + ').';
+    setTimeout(cargarFichas, 1500);
+  } catch (e) { msg.style.color = ''; msg.textContent = e.message; boton.disabled = false; }
+}
+
 /* ---------------- ALERTAS ---------------- */
 $('#al-fecha').value = fechaHoy();
 $('#al-fecha').onchange = cargarAlertas;
@@ -470,6 +612,8 @@ $('#a-guardar').onclick = async () => {
 
 /* ---------------- arranque ---------------- */
 listaTecnicos().then(cargarVivo);
+contarFichas();
+setInterval(contarFichas, 60000);
 setInterval(() => { if (vista === 'vivo') cargarVivo(); }, 15000);
 </script>
 </body>

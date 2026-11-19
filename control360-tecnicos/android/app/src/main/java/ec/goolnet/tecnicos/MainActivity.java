@@ -13,6 +13,8 @@ import android.os.Bundle;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient.FileChooserParams;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -20,9 +22,15 @@ import android.webkit.WebViewClient;
 
 import org.json.JSONObject;
 
+import java.io.File;
+import androidx.core.content.FileProvider;
+
 public class MainActivity extends Activity {
     private static final int PERM_UBIC = 1, PERM_FONDO = 2, PERM_NOTIF = 3;
+    private static final int ELEGIR_FOTO = 20;
     private WebView web;
+    private ValueCallback<Uri[]> fotoCallback;
+    private Uri fotoCamara;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -33,7 +41,14 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         web.setWebViewClient(new WebViewClient());
-        web.setWebChromeClient(new WebChromeClient());
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView w, ValueCallback<Uri[]> cb, FileChooserParams params) {
+                if (fotoCallback != null) fotoCallback.onReceiveValue(null);
+                fotoCallback = cb;
+                return elegirFoto();
+            }
+        });
         web.addJavascriptInterface(new Puente(), "Nativo");
         setContentView(web);
         web.loadUrl("file:///android_asset/www/index.html");
@@ -59,6 +74,50 @@ public class MainActivity extends Activity {
 
     private void responder(String id, int codigo, String cuerpo) {
         js("window._resp(" + JSONObject.quote(id) + "," + codigo + "," + JSONObject.quote(cuerpo) + ")");
+    }
+
+    // ------------------------------------------------------------ foto de la casa
+
+    /** Abre la cámara (o la galería) para la foto de la casa. */
+    private boolean elegirFoto() {
+        try {
+            File dir = new File(getCacheDir(), "fotos");
+            if (!dir.exists()) dir.mkdirs();
+            File[] viejas = dir.listFiles();
+            if (viejas != null) for (File f : viejas) f.delete();
+            File archivo = new File(dir, "casa_" + System.currentTimeMillis() + ".jpg");
+            fotoCamara = FileProvider.getUriForFile(this, getPackageName() + ".fotos", archivo);
+            Intent camara = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+            camara.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, fotoCamara);
+            camara.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent galeria = new Intent(Intent.ACTION_GET_CONTENT);
+            galeria.addCategory(Intent.CATEGORY_OPENABLE);
+            galeria.setType("image/*");
+            Intent elegir = Intent.createChooser(galeria, "Foto de la casa");
+            elegir.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[]{camara});
+            startActivityForResult(elegir, ELEGIR_FOTO);
+            return true;
+        } catch (Exception e) {
+            if (fotoCallback != null) fotoCallback.onReceiveValue(null);
+            fotoCallback = null;
+            return false;
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int code, int res, Intent data) {
+        super.onActivityResult(code, res, data);
+        if (code != ELEGIR_FOTO || fotoCallback == null) return;
+        Uri[] r = null;
+        if (res == RESULT_OK) {
+            if (data != null && data.getData() != null) r = new Uri[]{data.getData()};
+            else if (fotoCamara != null) {
+                File f = new File(new File(getCacheDir(), "fotos"), fotoCamara.getLastPathSegment());
+                if (f.length() > 0) r = new Uri[]{fotoCamara};
+            }
+        }
+        fotoCallback.onReceiveValue(r);
+        fotoCallback = null;
     }
 
     // ------------------------------------------------------------ permisos

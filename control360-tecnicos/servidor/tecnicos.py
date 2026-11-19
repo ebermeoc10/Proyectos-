@@ -79,6 +79,15 @@ def usar_login_de_control360(funcion, url_login="/login"):
     _url_login = url_login
 
 
+_c360 = {}  # conexión opcional con la base de CONTROL360 (clientes)
+
+
+def configurar_control360(db, empresa_id, usuario_actual=None, ahora_txt=None):
+    """Conecta el módulo con los clientes de CONTROL360.
+    db: función que abre la base de CONTROL360; empresa_id: id de Orange.Net."""
+    _c360.update(db=db, empresa=empresa_id, usuario=usuario_actual, ahora=ahora_txt)
+
+
 # ----------------------------------------------------------------- base de datos
 
 ESQUEMA = """
@@ -130,6 +139,27 @@ CREATE TABLE IF NOT EXISTS ordenes (
     llegada INTEGER,
     terminada INTEGER,
     nota_tecnico TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS fichas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tecnico_id INTEGER NOT NULL,
+    tipo TEXT NOT NULL,            -- 'nuevo' o 'actualizar'
+    cliente_id INTEGER,            -- cliente de CONTROL360 (al actualizar o al aprobar)
+    orden_id INTEGER,
+    nombre TEXT DEFAULT '',
+    cedula TEXT DEFAULT '',
+    telefono TEXT DEFAULT '',
+    direccion TEXT DEFAULT '',
+    ip TEXT DEFAULT '',
+    lat REAL,
+    lng REAL,
+    foto BLOB,
+    notas TEXT DEFAULT '',
+    antes TEXT DEFAULT '',         -- datos del cliente antes del cambio (JSON)
+    estado TEXT DEFAULT 'pendiente',
+    creada INTEGER,
+    revisada INTEGER,
+    nota_oficina TEXT DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS ajustes (
     clave TEXT PRIMARY KEY,
@@ -743,3 +773,256 @@ def app_orden_estado(oid):
         return jsonify(error="Estado no válido"), 400
     con.commit()
     return jsonify(ok=True)
+
+
+# ----------------------------------------------------------------- fichas de clientes
+#
+# El técnico llena una ficha (cliente nuevo o cambios de uno existente) desde la app.
+# La oficina la revisa en el panel: los cambios se aplican con un botón; el cliente
+# nuevo se crea con el formulario normal de CONTROL360 (que reserva la IP en el
+# MikroTik y arma el cobro), y luego se le pega la foto y la ubicación de la casa.
+
+import base64
+import ipaddress
+from contextlib import closing
+from io import BytesIO
+
+CAMPOS_FICHA = ("nombre", "cedula", "telefono", "direccion", "ip", "notas")
+
+
+def _foto_jpeg(b64):
+    """Valida y achica la foto (base64) a JPEG de máximo 1600 px."""
+    if not b64:
+        return None
+    if "," in b64[:100]:
+        b64 = b64.split(",", 1)[1]
+    try:
+        crudo = base64.b64decode(b64, validate=False)
+    except ValueError:
+        raise ValueError("La foto llegó dañada.")
+    if len(crudo) > 8 * 1024 * 1024:
+        raise ValueError("La foto pesa más de 8 MB.")
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(BytesIO(crudo)) as im:
+            if im.format not in ("JPEG", "PNG", "WEBP"):
+                raise ValueError("Use una foto JPG o PNG.")
+            im = ImageOps.exif_transpose(im)
+            im.thumbnail((1600, 1600))
+            out = BytesIO()
+            im.convert("RGB").save(out, "JPEG", quality=85)
+            return out.getvalue()
+    except ImportError:
+        if crudo[:3] != b"\xff\xd8\xff":
+            raise ValueError("Use una foto JPG.")
+        return crudo
+    except ValueError:
+        raise
+    except Exception:
+        raise ValueError("No se pudo leer la foto.")
+
+
+def _ip_ok(ip):
+    if not ip:
+        return ""
+    try:
+        return str(ipaddress.IPv4Address(ip.strip()))
+    except ValueError:
+        raise ValueError("La IP no es válida (ejemplo: 10.20.30.40).")
+
+
+def _c360_db():
+    if not _c360.get("db"):
+        raise RuntimeError("El módulo no está conectado con los clientes de CONTROL360.")
+    return closing(_c360["db"]())
+
+
+def _cliente_c360(c, cliente_id):
+    emp = _c360["empresa"]
+    r = c.execute("SELECT id, name, document, phone, address FROM clients WHERE id=? AND company_id=?",
+                  (cliente_id, emp)).fetchone()
+    if r is None:
+        return None
+    d = {"id": r["id"], "nombre": r["name"], "cedula": r["document"] or "",
+         "telefono": r["phone"] or "", "direccion": r["address"] or "", "ip": ""}
+    try:
+        ip = c.execute("SELECT ip FROM client_ip_assignments WHERE client_id=? AND company_id=? "
+                       "UNION ALL SELECT ip FROM client_sta_ines_ip_assignments WHERE client_id=? AND company_id=?",
+                       (cliente_id, emp, cliente_id, emp)).fetchone()
+        if ip:
+            d["ip"] = ip[0]
+    except sqlite3.Error:
+        pass
+    return d
+
+
+def _ficha_dict(r, con_foto=False):
+    d = {k: r[k] for k in r.keys() if k != "foto"}
+    d["tiene_foto"] = r["foto"] is not None
+    d["creada_txt"] = local(r["creada"]).strftime("%d/%m %H:%M") if r["creada"] else ""
+    try:
+        d["antes"] = json.loads(r["antes"]) if r["antes"] else None
+    except ValueError:
+        d["antes"] = None
+    return d
+
+
+@bp.route("/api/clientes", methods=["GET", "OPTIONS"])
+@requiere_tecnico
+def app_buscar_clientes():
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify(clientes=[])
+    try:
+        with _c360_db() as c:
+            filas = c.execute(
+                "SELECT id FROM clients WHERE company_id=? AND (name LIKE ? OR phone LIKE ? OR document LIKE ?) "
+                "ORDER BY name LIMIT 20", (_c360["empresa"], "%" + q + "%", "%" + q + "%", "%" + q + "%")).fetchall()
+            return jsonify(clientes=[_cliente_c360(c, f["id"]) for f in filas])
+    except RuntimeError as e:
+        return jsonify(error=str(e)), 503
+
+
+@bp.route("/api/fichas", methods=["GET", "POST", "OPTIONS"])
+@requiere_tecnico
+def app_fichas():
+    con = db()
+    tid = g.tecnico["id"]
+    if request.method == "POST":
+        d = request.get_json(force=True, silent=True) or {}
+        tipo = d.get("tipo")
+        if tipo not in ("nuevo", "actualizar"):
+            return jsonify(error="Tipo de ficha no válido"), 400
+        datos = {k: str(d.get(k) or "").strip()[:300] for k in CAMPOS_FICHA}
+        try:
+            datos["ip"] = _ip_ok(datos["ip"])
+            foto = _foto_jpeg(d.get("foto") or "")
+        except ValueError as e:
+            return jsonify(error=str(e)), 400
+        antes = ""
+        cliente_id = None
+        if tipo == "nuevo" and not datos["nombre"]:
+            return jsonify(error="Escriba el nombre del cliente"), 400
+        if tipo == "actualizar":
+            try:
+                cliente_id = int(d.get("cliente_id"))
+                with _c360_db() as c:
+                    previo = _cliente_c360(c, cliente_id)
+            except (TypeError, ValueError):
+                return jsonify(error="Elija el cliente"), 400
+            except RuntimeError as e:
+                return jsonify(error=str(e)), 503
+            if previo is None:
+                return jsonify(error="Cliente no encontrado"), 404
+            antes = json.dumps(previo, ensure_ascii=False)
+        lat, lng = d.get("lat"), d.get("lng")
+        try:
+            lat = float(lat) if lat not in (None, "") else None
+            lng = float(lng) if lng not in (None, "") else None
+        except (TypeError, ValueError):
+            lat = lng = None
+        con.execute(
+            "INSERT INTO fichas (tecnico_id, tipo, cliente_id, orden_id, nombre, cedula, telefono, direccion, ip, "
+            "lat, lng, foto, notas, antes, creada) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (tid, tipo, cliente_id, d.get("orden_id") or None, datos["nombre"], datos["cedula"], datos["telefono"],
+             datos["direccion"], datos["ip"], lat, lng, foto, datos["notas"], antes, ahora()))
+        con.commit()
+    filas = con.execute("SELECT * FROM fichas WHERE tecnico_id=? ORDER BY id DESC LIMIT 20", (tid,)).fetchall()
+    return jsonify(fichas=[_ficha_dict(r) for r in filas])
+
+
+@bp.route("/panel/api/fichas")
+@requiere_admin
+def api_fichas():
+    estado = request.args.get("estado") or "pendiente"
+    nombres = {r["id"]: r["nombre"] for r in db().execute("SELECT id, nombre FROM tecnicos")}
+    filas = db().execute("SELECT * FROM fichas WHERE estado=? ORDER BY id DESC LIMIT 100", (estado,)).fetchall()
+    out = []
+    for r in filas:
+        d = _ficha_dict(r)
+        d["tecnico"] = nombres.get(r["tecnico_id"], "?")
+        out.append(d)
+    pend = db().execute("SELECT COUNT(*) FROM fichas WHERE estado='pendiente'").fetchone()[0]
+    return jsonify(fichas=out, pendientes=pend, conectado=bool(_c360.get("db")),
+                   empresa_id=_c360.get("empresa"))
+
+
+@bp.route("/panel/fichas/<int:fid>/foto")
+@requiere_admin
+def ficha_foto(fid):
+    r = db().execute("SELECT foto FROM fichas WHERE id=?", (fid,)).fetchone()
+    if r is None or r["foto"] is None:
+        return "", 404
+    return Response(r["foto"], mimetype="image/jpeg", headers={"Cache-Control": "private, no-store"})
+
+
+def _audit(c, accion, detalle):
+    try:
+        u = _c360["usuario"]() if _c360.get("usuario") else None
+        c.execute("INSERT INTO audit(user_id,company_id,action,detail,at) VALUES(?,?,?,?,?)",
+                  (u["id"] if u else None, _c360["empresa"], accion, str(detalle)[:400],
+                   _c360["ahora"]() if _c360.get("ahora") else datetime.now(TZ).isoformat(timespec="seconds")))
+    except sqlite3.Error:
+        pass
+
+
+def _pegar_casa(c, cliente_id, f):
+    """Guarda ubicación y foto de la casa en el cliente de CONTROL360."""
+    emp = _c360["empresa"]
+    cols = {r[1] for r in c.execute("PRAGMA table_info(clients)")}
+    if "house_location" in cols and f["lat"] is not None:
+        c.execute("UPDATE clients SET house_location=? WHERE id=? AND company_id=?",
+                  ("%.7f, %.7f" % (f["lat"], f["lng"]), cliente_id, emp))
+    if "house_photo" in cols and f["foto"] is not None:
+        c.execute("UPDATE clients SET house_photo=? WHERE id=? AND company_id=?", (f["foto"], cliente_id, emp))
+
+
+@bp.route("/panel/api/fichas/<int:fid>", methods=["POST"])
+@requiere_admin
+def api_ficha_accion(fid):
+    con = db()
+    f = con.execute("SELECT * FROM fichas WHERE id=?", (fid,)).fetchone()
+    if f is None:
+        return jsonify(error="Ficha no encontrada"), 404
+    if f["estado"] != "pendiente":
+        return jsonify(error="Esta ficha ya fue revisada"), 400
+    d = _datos()
+    accion = d.get("accion")
+    if accion == "rechazar":
+        con.execute("UPDATE fichas SET estado='rechazada', revisada=?, nota_oficina=? WHERE id=?",
+                    (ahora(), (d.get("nota") or "")[:300], fid))
+        con.commit()
+        return jsonify(ok=True)
+    try:
+        with _c360_db() as c, c:
+            if accion == "aplicar" and f["tipo"] == "actualizar":
+                emp = _c360["empresa"]
+                cambios = []
+                for campo, col in (("nombre", "name"), ("cedula", "document"), ("telefono", "phone"),
+                                   ("direccion", "address")):
+                    v = (d.get(campo) if campo in d else f[campo]) or ""
+                    if v.strip():
+                        c.execute("UPDATE clients SET %s=? WHERE id=? AND company_id=?" % col,
+                                  (v.strip(), f["cliente_id"], emp))
+                        cambios.append(campo)
+                _pegar_casa(c, f["cliente_id"], f)
+                _audit(c, "tecnicos_actualiza_cliente", "%s:%s" % (f["cliente_id"], ",".join(cambios)))
+                cliente_id = f["cliente_id"]
+            elif accion == "vincular" and f["tipo"] == "nuevo":
+                # El cliente ya se creó con el formulario de CONTROL360: buscarlo y pegarle la casa.
+                nombre = (d.get("nombre") or f["nombre"]).strip()
+                r = c.execute("SELECT id FROM clients WHERE company_id=? AND name=? ORDER BY id DESC LIMIT 1",
+                              (_c360["empresa"], nombre)).fetchone()
+                if r is None:
+                    return jsonify(error="No se encontró el cliente recién creado"), 404
+                cliente_id = r["id"]
+                _pegar_casa(c, cliente_id, f)
+                _audit(c, "tecnicos_ficha_cliente", "%s:ficha %s" % (cliente_id, fid))
+            else:
+                return jsonify(error="Acción no válida"), 400
+    except RuntimeError as e:
+        return jsonify(error=str(e)), 503
+    con.execute("UPDATE fichas SET estado='aprobada', revisada=?, cliente_id=?, nota_oficina=? WHERE id=?",
+                (ahora(), cliente_id, (d.get("nota") or "")[:300], fid))
+    con.commit()
+    return jsonify(ok=True, cliente_id=cliente_id)

@@ -41,6 +41,9 @@
   .vacio { color:var(--suave); text-align:center; padding:20px; }
   .oculto { display:none; }
   a.link { color:var(--acento); font-size:15px; }
+  .foto-prev { width:100%; border-radius:12px; margin-top:10px; }
+  .res { padding:12px; border:1px solid var(--borde); border-radius:12px; margin-top:8px; background:#fff; }
+  .res small { color:var(--suave); display:block; }
   .pie { color:var(--suave); font-size:13px; text-align:center; margin:20px 0; }
 </style>
 </head>
@@ -76,8 +79,45 @@
     <h2>Mis órdenes de hoy</h2>
     <div id="i-ordenes"><div class="vacio">Cargando…</div></div>
     <button class="btn sec" id="i-recargar">Actualizar órdenes</button>
+    <h2>Clientes</h2>
+    <div class="fila">
+      <button class="btn" id="i-nuevo" style="margin-top:0">Cliente nuevo</button>
+      <button class="btn" id="i-actualizar" style="margin-top:0">Actualizar cliente</button>
+    </div>
+    <div id="i-fichas"></div>
     <button class="btn sec" id="i-salir" style="margin-top:28px">Cerrar sesión</button>
     <p class="pie" id="i-pie"></p>
+  </div>
+</div>
+
+<!-- FICHA DE CLIENTE -->
+<div id="p-cliente" class="oculto">
+  <header><h1 id="c-titulo">Cliente nuevo</h1><small>Lo revisa la oficina antes de guardarlo</small></header>
+  <div class="cont">
+    <div class="carta" id="c-buscar-caja">
+      <label>Buscar cliente (nombre, teléfono o cédula)</label>
+      <input id="c-buscar" autocomplete="off">
+      <div id="c-resultados"></div>
+    </div>
+    <div class="carta" id="c-form">
+      <div id="c-elegido" style="font-weight:600"></div>
+      <label>Nombres y apellidos</label><input id="c-nombre" autocapitalize="words">
+      <label>Cédula</label><input id="c-cedula" inputmode="numeric" maxlength="13">
+      <label>Teléfono</label><input id="c-telefono" inputmode="tel">
+      <label>Dirección</label><input id="c-direccion">
+      <label>IP</label><input id="c-ip" inputmode="decimal" placeholder="Ej.: 10.20.30.40">
+      <label>Ubicación de la casa</label>
+      <div class="fila" style="align-items:center"><span id="c-ubi" style="flex:1;color:var(--suave)">—</span>
+        <button class="btn sec" id="c-ubi-btn" style="width:auto;margin-top:0">Tomar aquí</button></div>
+      <label>Foto de la casa</label>
+      <label for="c-foto" class="btn sec" style="text-align:center;margin-top:0;color:var(--acento);font-size:18px">Tomar foto de la casa</label>
+      <input type="file" id="c-foto" accept="image/*" capture="environment" style="display:none">
+      <img id="c-prev" class="foto-prev oculto" alt="">
+      <label>Notas (opcional)</label><textarea id="c-notas" rows="3"></textarea>
+      <button class="btn ok" id="c-enviar">Enviar a la oficina</button>
+      <button class="btn sec" id="c-cancelar">Volver</button>
+      <div class="msg" id="c-msg"></div>
+    </div>
   </div>
 </div>
 
@@ -127,11 +167,11 @@ const estado = () => { try { return JSON.parse(N.estado()); } catch (e) { return
 let pantalla = '';
 function mostrar(p) {
   pantalla = p;
-  ['login','inicio','terminar'].forEach(x => $('#p-' + x).classList.toggle('oculto', x !== p));
+  ['login','inicio','terminar','cliente'].forEach(x => $('#p-' + x).classList.toggle('oculto', x !== p));
   window.scrollTo(0, 0);
-  if (p === 'inicio') { pintarEstado(); cargarOrdenes(); }
+  if (p === 'inicio') { pintarEstado(); cargarOrdenes(); cargarFichas(); }
 }
-window.atras = () => { if (pantalla === 'terminar') { mostrar('inicio'); return true; } return false; };
+window.atras = () => { if (pantalla === 'terminar' || pantalla === 'cliente') { mostrar('inicio'); return true; } return false; };
 
 /* ---- login ---- */
 $('#l-avanzado').onclick = e => { e.preventDefault(); $('#l-serv-caja').classList.toggle('oculto'); };
@@ -189,6 +229,8 @@ async function cargarOrdenes() {
     if (o.estado === 'pendiente') botones = `<button class="btn" data-a="en_camino" data-id="${o.id}">Voy en camino</button>`;
     if (o.estado === 'en_camino') botones = `<button class="btn" data-a="en_sitio" data-id="${o.id}">Llegué</button>`;
     if (o.estado === 'en_sitio') botones = `<button class="btn ok" data-a="terminar" data-id="${o.id}">Terminé</button>`;
+    const ficha = (o.estado === 'en_sitio' || o.estado === 'terminada') ?
+      `<button class="btn sec" data-a="ficha" data-id="${o.id}">Ficha del cliente</button>` : '';
     const extra = o.estado !== 'terminada' ? `<div class="fila">
         <button class="btn sec" data-a="mapa" data-id="${o.id}">Cómo llegar</button>
         ${o.telefono ? `<button class="btn sec" data-a="llamar" data-id="${o.id}">Llamar</button>` : ''}</div>` : '';
@@ -196,7 +238,7 @@ async function cargarOrdenes() {
       ${o.direccion ? `<p>${esc(o.direccion)}</p>` : ''}${o.notas ? `<p>${esc(o.notas)}</p>` : ''}
       <span class="chip ${o.estado}">${ESTADO[o.estado]}</span>
       ${o.duracion_min != null ? `<p>Tiempo en la casa: ${o.duracion_min} min</p>` : ''}
-      ${botones}${extra}</div>`;
+      ${botones}${extra}${ficha}</div>`;
   }).join('') || '<div class="vacio">No tiene órdenes asignadas hoy.</div>';
   document.querySelectorAll('#i-ordenes [data-a]').forEach(b => b.onclick = () => accion(b.dataset.a, +b.dataset.id, b));
 }
@@ -205,6 +247,7 @@ async function accion(a, id, boton) {
   const o = ORDENES.find(x => x.id === id);
   if (a === 'mapa') { N.mapa(o.lat != null ? String(o.lat) : '', o.lng != null ? String(o.lng) : '', o.direccion || o.cliente); return; }
   if (a === 'llamar') { N.llamar(o.telefono); return; }
+  if (a === 'ficha') { abrirFicha('nuevo', { nombre:o.cliente, telefono:o.telefono, direccion:o.direccion, orden_id:o.id }); return; }
   if (a === 'terminar') { ordenTerminar = o; $('#t-cliente').textContent = o.cliente; $('#t-nota').value = ''; $('#t-msg').textContent = ''; mostrar('terminar'); return; }
   boton.disabled = true; boton.textContent = 'Enviando…';
   const datos = { estado: a };
@@ -227,6 +270,88 @@ $('#i-salir').onclick = () => {
   esperas[id] = () => mostrar('login');
   N.salir(id);
 };
+
+/* ---- fichas de clientes ---- */
+let FICHA = null;   // {tipo, cliente_id, orden_id, foto, lat, lng}
+const CAMPOS = ['nombre','cedula','telefono','direccion','ip','notas'];
+function tomarUbicacion() {
+  const u = N.ubicacion();
+  if (u) { const [la, ln] = u.split(','); FICHA.lat = +la; FICHA.lng = +ln;
+           $('#c-ubi').textContent = (+la).toFixed(5) + ', ' + (+ln).toFixed(5) + ' ✓'; }
+  else { $('#c-ubi').textContent = 'Sin GPS todavía. Salga al aire libre y toque de nuevo.'; }
+}
+function abrirFicha(tipo, datos) {
+  FICHA = { tipo, cliente_id: null, orden_id: (datos && datos.orden_id) || null, foto: '', lat: null, lng: null };
+  $('#c-titulo').textContent = tipo === 'nuevo' ? 'Cliente nuevo' : 'Actualizar cliente';
+  CAMPOS.forEach(k => $('#c-' + k).value = (datos && datos[k]) || '');
+  $('#c-foto').value = ''; $('#c-prev').classList.add('oculto'); $('#c-msg').textContent = '';
+  $('#c-buscar').value = ''; $('#c-resultados').innerHTML = ''; $('#c-elegido').textContent = '';
+  $('#c-buscar-caja').classList.toggle('oculto', tipo !== 'actualizar');
+  $('#c-form').classList.toggle('oculto', tipo === 'actualizar');
+  $('#c-ubi').textContent = '—';
+  mostrar('cliente');
+  tomarUbicacion();
+}
+$('#i-nuevo').onclick = () => abrirFicha('nuevo');
+$('#i-actualizar').onclick = () => abrirFicha('actualizar');
+$('#c-cancelar').onclick = () => mostrar('inicio');
+$('#c-ubi-btn').onclick = tomarUbicacion;
+let tBuscar = null, CLIENTES = [];
+$('#c-buscar').oninput = () => {
+  clearTimeout(tBuscar);
+  tBuscar = setTimeout(async () => {
+    const q = $('#c-buscar').value.trim();
+    if (q.length < 2) { $('#c-resultados').innerHTML = ''; return; }
+    try { CLIENTES = (await pedir('GET', '/api/clientes?q=' + encodeURIComponent(q))).clientes; }
+    catch (e) { $('#c-resultados').innerHTML = `<div class="msg">${esc(e.message)}</div>`; return; }
+    $('#c-resultados').innerHTML = CLIENTES.map((c, i) => `<div class="res" data-i="${i}"><b>${esc(c.nombre)}</b>
+      <small>${esc(c.telefono || 'sin teléfono')} · ${esc(c.direccion || 'sin dirección')}${c.ip ? ' · IP ' + esc(c.ip) : ''}</small></div>`).join('')
+      || '<div class="vacio">No se encontró.</div>';
+    document.querySelectorAll('#c-resultados .res').forEach(el => el.onclick = () => {
+      const c = CLIENTES[+el.dataset.i];
+      FICHA.cliente_id = c.id;
+      CAMPOS.forEach(k => $('#c-' + k).value = c[k] || '');
+      $('#c-elegido').textContent = 'Cliente: ' + c.nombre + '. Cambie solo lo que haga falta.';
+      $('#c-buscar-caja').classList.add('oculto'); $('#c-form').classList.remove('oculto');
+    });
+  }, 400);
+};
+$('#c-foto').onchange = () => {
+  const f = $('#c-foto').files[0];
+  if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    FICHA.foto = cv.toDataURL('image/jpeg', 0.8);
+    $('#c-prev').src = FICHA.foto; $('#c-prev').classList.remove('oculto');
+    URL.revokeObjectURL(img.src);
+  };
+  img.onerror = () => { $('#c-msg').textContent = 'No se pudo leer la foto.'; };
+  img.src = URL.createObjectURL(f);
+};
+$('#c-enviar').onclick = async () => {
+  const datos = { tipo: FICHA.tipo, cliente_id: FICHA.cliente_id, orden_id: FICHA.orden_id,
+                  lat: FICHA.lat, lng: FICHA.lng, foto: FICHA.foto };
+  CAMPOS.forEach(k => datos[k] = $('#c-' + k).value.trim());
+  if (FICHA.tipo === 'nuevo' && !datos.nombre) { $('#c-msg').textContent = 'Escriba el nombre del cliente.'; return; }
+  if (!datos.foto && !confirm('¿Enviar sin foto de la casa?')) return;
+  $('#c-enviar').disabled = true; $('#c-msg').style.color = 'var(--suave)'; $('#c-msg').textContent = 'Enviando…';
+  try { await pedir('POST', '/api/fichas', datos); $('#c-msg').textContent = ''; mostrar('inicio'); }
+  catch (e) { $('#c-msg').style.color = ''; $('#c-msg').textContent = e.message; }
+  $('#c-enviar').disabled = false;
+};
+const EST_FICHA = { pendiente:['en_sitio','En revisión'], aprobada:['terminada','Aprobada'], rechazada:['pendiente','Rechazada'] };
+async function cargarFichas() {
+  let fs = [];
+  try { fs = (await pedir('GET', '/api/fichas')).fichas; } catch (e) { return; }
+  $('#i-fichas').innerHTML = fs.slice(0, 8).map(f => `<div class="carta" style="margin-top:10px">
+    <b>${f.tipo === 'nuevo' ? 'Nuevo' : 'Cambio'}: ${esc(f.nombre || (f.antes && f.antes.nombre) || '')}</b>
+    <br><span class="chip ${EST_FICHA[f.estado][0]}">${EST_FICHA[f.estado][1]}</span> <small style="color:var(--suave)">${f.creada_txt}</small>
+    ${f.nota_oficina ? `<p>${esc(f.nota_oficina)}</p>` : ''}</div>`).join('');
+}
 
 /* ---- arranque ---- */
 const e0 = estado();
