@@ -21,6 +21,8 @@ Descarga de la app: https://github.com/ebermeoc10/Proyectos-/releases/download/t
   - las rutas `/tecnicos/api/...` de la app entran con el token del técnico, por eso se atienden
     antes del control csrf de CONTROL360.
 - Panel: https://habita360.pythonanywhere.com/tecnicos/
+- Menú: entrada "Técnicos en campo" en la sección RED de `templates/_c360_menu.html`
+  (solo admins de empresas cuyo nombre contiene "orange"). Respaldo: `_c360_menu_respaldo.html`.
 
 Para quitarlo: devolver el WSGI al contenido de `wsgi_respaldo.py` y recargar.
 
