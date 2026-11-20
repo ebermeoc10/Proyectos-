@@ -9,3 +9,4 @@ Los APK de Android TV se arman solos en GitHub y quedan en *Releases*.
   - APK: https://github.com/ebermeoc10/Proyectos-/releases/download/radios-ecuador/RadiosEcuador.apk
 - `radio-propia/` — App por radio cliente (servicio de streaming) + servidor AzuraCast. Demo: https://github.com/ebermeoc10/Proyectos-/releases/download/radio-propia/demo-goolnet.apk
 - `control360-tecnicos/` — CONTROL360 · Técnicos Orange: rastreo de técnicos (panel web + app Android). APK: https://github.com/ebermeoc10/Proyectos-/releases/download/tecnicos-orange/TecnicosOrange.apk
+- `control360-sesion/` — CONTROL360: mantener sesión iniciada 30 días (se activa desde el WSGI, sin tocar app.py)
