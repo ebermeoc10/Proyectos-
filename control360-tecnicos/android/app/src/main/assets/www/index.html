@@ -227,7 +227,7 @@ function pintarEstado() {
   $('#i-faltas').innerHTML = faltas.length ? `<div class="carta falta"><b>Para que funcione bien falta:</b>
      <ul style="margin:8px 0 0;padding-left:20px">${faltas.map(f => '<li>' + f + '</li>').join('')}</ul>
      <button class="btn" onclick="Nativo.arreglar()">Arreglar</button></div>` : '';
-  $('#i-pie').textContent = 'Versión ' + (e.version || '') + ' · ' + (e.servidor || '');
+  $('#i-pie').textContent = 'Versión ' + (e.version || '');
 }
 /* ---- versión nueva de la app ---- */
 let ultimaRevisionVersion = 0;
