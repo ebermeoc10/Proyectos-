@@ -36,6 +36,8 @@ public class RastreoService extends Service implements LocationListener {
     private static final int NOTIF_GPS = 42;
     private static final String CANAL = "rastreo";
     private static final String CANAL_ALERTA = "alertas";
+    private static final String CANAL_ORDENES = "ordenes";
+    private static final long REVISAR_ORDENES_MS = 60_000L;
     private static final long EDAD_MAX_MS = 3 * 60_000L;
 
     public static volatile boolean activo = false;
@@ -50,6 +52,8 @@ public class RastreoService extends Service implements LocationListener {
     private boolean escuchando = false;
     private Boolean gpsAntes = null;
     private boolean enviando = false;
+    private long ultimaRevisionOrdenes = 0;
+    private boolean revisandoOrdenes = false;
 
     @Override public IBinder onBind(Intent i) { return null; }
 
@@ -160,6 +164,10 @@ public class RastreoService extends Service implements LocationListener {
                 ultimoEnvioMs = ahora;
                 enviar();
             }
+            if (ahora - ultimaRevisionOrdenes >= REVISAR_ORDENES_MS) {
+                ultimaRevisionOrdenes = ahora;
+                revisarOrdenes();
+            }
             hilo.postDelayed(this, 5000);
         }
     };
@@ -244,6 +252,61 @@ public class RastreoService extends Service implements LocationListener {
         }).start();
     }
 
+    // ------------------------------------------------------------ órdenes nuevas
+
+    /** Pregunta al servidor por las órdenes del técnico y avisa las que no había visto. */
+    private void revisarOrdenes() {
+        if (revisandoOrdenes) return;
+        revisandoOrdenes = true;
+        new Thread(() -> {
+            try {
+                Red.Resp r = Red.pedir(this, "GET", "/api/ordenes", null, null);
+                if (r.codigo != 200) return;
+                JSONArray ords = new JSONObject(r.cuerpo).optJSONArray("ordenes");
+                if (ords == null) return;
+                android.content.SharedPreferences sp = Prefs.sp(this);
+                boolean primeraVez = !sp.contains("ordenes_vistas");
+                java.util.Set<String> vistas = new java.util.HashSet<>(
+                        sp.getStringSet("ordenes_vistas", new java.util.HashSet<>()));
+                java.util.Set<String> actuales = new java.util.HashSet<>();
+                for (int i = 0; i < ords.length(); i++) {
+                    JSONObject o = ords.optJSONObject(i);
+                    if (o == null) continue;
+                    String id = String.valueOf(o.optLong("id"));
+                    actuales.add(id);
+                    if (primeraVez || vistas.contains(id)) continue;
+                    if ("terminada".equals(o.optString("estado"))) continue;
+                    avisarOrden(o);
+                }
+                // Se guardan solo las órdenes que siguen llegando, para que la lista no crezca.
+                sp.edit().putStringSet("ordenes_vistas", actuales).apply();
+            } catch (Exception ignored) {
+            } finally {
+                revisandoOrdenes = false;
+            }
+        }).start();
+    }
+
+    private void avisarOrden(JSONObject o) {
+        String tipo = o.optString("tipo", "Orden");
+        String cliente = o.optString("cliente", "");
+        String dir = o.optString("direccion", "");
+        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CANAL_ORDENES) : new Notification.Builder(this);
+        b.setSmallIcon(R.drawable.ic_notif)
+         .setContentTitle("Nueva orden: " + tipo)
+         .setContentText(cliente + (dir.isEmpty() ? "" : " · " + dir))
+         .setStyle(new Notification.BigTextStyle().bigText(cliente + (dir.isEmpty() ? "" : "\n" + dir)))
+         .setAutoCancel(true)
+         .setContentIntent(abrirApp());
+        if (Build.VERSION.SDK_INT < 26) {
+            b.setDefaults(Notification.DEFAULT_ALL).setPriority(Notification.PRIORITY_HIGH);
+        }
+        try {
+            ((NotificationManager) getSystemService(NOTIFICATION_SERVICE))
+                    .notify(1000 + (int) (o.optLong("id") % 100000), b.build());
+        } catch (Exception ignored) {}
+    }
+
     private void terminar() {
         activo = false;
         dejarDeEscuchar();
@@ -280,6 +343,11 @@ public class RastreoService extends Service implements LocationListener {
         a.setShowBadge(false);
         nm.createNotificationChannel(a);
         nm.createNotificationChannel(new NotificationChannel(CANAL_ALERTA, "Avisos de GPS", NotificationManager.IMPORTANCE_HIGH));
+        NotificationChannel ord = new NotificationChannel(CANAL_ORDENES, "Órdenes nuevas", NotificationManager.IMPORTANCE_HIGH);
+        ord.setDescription("Avisa cuando la oficina le asigna una orden de trabajo");
+        ord.enableVibration(true);
+        ord.setVibrationPattern(new long[]{0, 400, 200, 400});
+        nm.createNotificationChannel(ord);
     }
 
     private PendingIntent abrirApp() {
