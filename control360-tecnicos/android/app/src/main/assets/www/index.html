@@ -79,7 +79,7 @@
     <div id="i-faltas"></div>
     <h2>Mis órdenes de hoy</h2>
     <div id="i-ordenes"><div class="vacio">Cargando…</div></div>
-    <button class="btn sec" id="i-recargar">Actualizar órdenes</button>
+    <button class="btn sec" id="i-recargar" style="border:2px solid var(--acento)">↻ Actualizar órdenes</button>
     <h2>Clientes</h2>
     <div class="fila">
       <button class="btn" id="i-nuevo" style="margin-top:0">Cliente nuevo</button>
@@ -293,7 +293,17 @@ $('#t-ok').onclick = async () => {
   $('#t-ok').disabled = false;
 };
 $('#t-cancelar').onclick = () => mostrar('inicio');
-$('#i-recargar').onclick = cargarOrdenes;
+$('#i-recargar').onclick = async () => {
+  const b = $('#i-recargar');
+  if (b.disabled) return;
+  b.disabled = true; b.textContent = 'Actualizando…';
+  await cargarOrdenes();
+  const h = new Date().toLocaleTimeString('es-EC', {hour:'2-digit', minute:'2-digit'});
+  b.textContent = '✓ Órdenes al día (' + h + ')';
+  setTimeout(() => { b.textContent = '↻ Actualizar órdenes'; b.disabled = false; }, 2500);
+};
+// Las órdenes también se refrescan solas cada minuto mientras la app está abierta.
+setInterval(() => { if (pantalla === 'inicio' && !document.hidden) cargarOrdenes(); }, 60000);
 $('#i-salir').onclick = () => {
   if (!confirm('¿Cerrar sesión? La oficina dejará de ver su ubicación.')) return;
   const id = 's' + (++sec);
