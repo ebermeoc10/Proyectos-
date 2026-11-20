@@ -74,6 +74,7 @@
 <div id="p-inicio" class="oculto">
   <header><h1 id="i-nombre">Técnico</h1><small id="i-horario"></small></header>
   <div class="cont">
+    <div id="i-version"></div>
     <div class="carta" id="i-estado"></div>
     <div id="i-faltas"></div>
     <h2>Mis órdenes de hoy</h2>
@@ -228,8 +229,25 @@ function pintarEstado() {
      <button class="btn" onclick="Nativo.arreglar()">Arreglar</button></div>` : '';
   $('#i-pie').textContent = 'Versión ' + (e.version || '') + ' · ' + (e.servidor || '');
 }
-window.refrescar = () => { if (pantalla === 'inicio') { pintarEstado(); cargarOrdenes(); } };
-setInterval(() => { if (pantalla === 'inicio') pintarEstado(); }, 10000);
+/* ---- versión nueva de la app ---- */
+let ultimaRevisionVersion = 0;
+function revisarVersion() {
+  if (!N.buscarVersion || Date.now() - ultimaRevisionVersion < 3 * 3600e3) return;
+  ultimaRevisionVersion = Date.now();
+  const id = 'v' + (++sec);
+  esperas[id] = (c, j) => {
+    const actual = estado().version_code || 0;
+    if (c !== 200 || !j.version_code || j.version_code <= actual || !j.apk) { $('#i-version').innerHTML = ''; return; }
+    $('#i-version').innerHTML = `<div class="carta" style="border:2px solid var(--ok)">
+      <b>Hay una versión nueva de la app (${j.version_name || ''})</b>
+      <small style="display:block;margin-top:4px">Tóquela para descargarla y luego elija "Actualizar". No se pierde la sesión.</small>
+      <button class="btn" id="i-actualizar-app">Actualizar ahora</button></div>`;
+    $('#i-actualizar-app').onclick = () => N.actualizarApp(j.apk);
+  };
+  N.buscarVersion(id);
+}
+window.refrescar = () => { if (pantalla === 'inicio') { pintarEstado(); cargarOrdenes(); revisarVersion(); } };
+setInterval(() => { if (pantalla === 'inicio') { pintarEstado(); revisarVersion(); } }, 10000);
 
 /* ---- órdenes ---- */
 let ORDENES = [];

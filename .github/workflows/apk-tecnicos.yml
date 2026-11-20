@@ -20,6 +20,10 @@ jobs:
         run: |
           mkdir out
           cp control360-tecnicos/android/app/build/outputs/apk/debug/*.apk out/TecnicosOrange.apk
+          VC=$(grep -oP "versionCode \K[0-9]+" control360-tecnicos/android/app/build.gradle)
+          VN=$(grep -oP "versionName '\K[^']+" control360-tecnicos/android/app/build.gradle)
+          echo "{\"version_code\": $VC, \"version_name\": \"$VN\", \"apk\": \"https://github.com/${{ github.repository }}/releases/download/tecnicos-orange/TecnicosOrange.apk\"}" > out/version.json
+          cat out/version.json
       - name: Publicar descarga
         uses: softprops/action-gh-release@v2
         with:
@@ -29,4 +33,6 @@ jobs:
           body: |
             App de los técnicos de Orange (CONTROL360). Descarga directa:
             https://github.com/${{ github.repository }}/releases/download/tecnicos-orange/TecnicosOrange.apk
-          files: out/TecnicosOrange.apk
+          files: |
+            out/TecnicosOrange.apk
+            out/version.json

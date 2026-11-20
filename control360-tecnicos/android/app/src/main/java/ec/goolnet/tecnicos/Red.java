@@ -19,6 +19,29 @@ public final class Red {
         Resp(int codigo, String cuerpo) { this.codigo = codigo; this.cuerpo = cuerpo; }
     }
 
+    /** Descarga un texto público (sin enviar el token del técnico). */
+    public static String texto(String url) {
+        HttpURLConnection h = null;
+        try {
+            h = (HttpURLConnection) new URL(url).openConnection();
+            h.setConnectTimeout(15000);
+            h.setReadTimeout(20000);
+            h.setInstanceFollowRedirects(true);
+            if (h.getResponseCode() != 200) return null;
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            try (InputStream in = h.getInputStream()) {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+            }
+            return bo.toString("UTF-8");
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (h != null) h.disconnect();
+        }
+    }
+
     public static Resp pedir(Context c, String metodo, String ruta, String cuerpo, String servidor) {
         HttpURLConnection h = null;
         try {

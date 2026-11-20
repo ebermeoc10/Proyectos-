@@ -26,6 +26,8 @@ import java.io.File;
 import androidx.core.content.FileProvider;
 
 public class MainActivity extends Activity {
+    private static final String URL_VERSION =
+            "https://github.com/ebermeoc10/Proyectos-/releases/download/tecnicos-orange/version.json";
     private static final int PERM_UBIC = 1, PERM_FONDO = 2, PERM_NOTIF = 3;
     private static final int ELEGIR_FOTO = 20;
     private WebView web;
@@ -207,6 +209,7 @@ public class MainActivity extends Activity {
                 o.put("pendientes", Prefs.cantidadPendiente(c));
                 o.put("ultimo_envio", Prefs.ultimoEnvio(c));
                 o.put("version", getPackageManager().getPackageInfo(getPackageName(), 0).versionName);
+                o.put("version_code", getPackageManager().getPackageInfo(getPackageName(), 0).versionCode);
                 return o.toString();
             } catch (Exception e) { return "{}"; }
         }
@@ -284,6 +287,20 @@ public class MainActivity extends Activity {
             catch (Exception e) {
                 startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("geo:" + lat + "," + lng + "?q=" + lat + "," + lng)));
             }
+        }
+
+        @JavascriptInterface
+        public void buscarVersion(String id) {
+            new Thread(() -> {
+                String t = Red.texto(URL_VERSION + "?t=" + System.currentTimeMillis());
+                responder(id, t == null ? 0 : 200, t == null ? "{}" : t);
+            }).start();
+        }
+
+        @JavascriptInterface
+        public void actualizarApp(String url) {
+            if (url == null || !url.startsWith("https://")) return;
+            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception ignored) {}
         }
 
         @JavascriptInterface
