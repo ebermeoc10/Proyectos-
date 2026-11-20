@@ -2,23 +2,14 @@
 
 Para que CONTROL360 no pida usuario y clave a cada rato.
 
-## Cómo se instala en PythonAnywhere (sin tocar `app.py`)
+## Instalado en PythonAnywhere (19-nov-2026)
 
-1. Subir `recordar_sesion.py` a `/home/Habita360/control360/control360_sesion/`.
-2. Respaldar el WSGI: copiar `/var/www/habita360_pythonanywhere_com_wsgi.py` como
-   `wsgi_respaldo_sesion.py`.
-3. Agregar al final del WSGI (después de que exista `application`):
+- Antes: `app.py` marcaba la sesión como permanente al entrar, pero con duración de **8 horas**.
+- Ahora: bloque al final de `/var/www/habita360_pythonanywhere_com_wsgi.py`
+  ("CONTROL360: mantener sesion iniciada 30 dias") que sube la duración a **30 días** y la
+  renueva en cada visita. No se tocó `app.py`.
+- El botón **Salir** sigue cerrando la sesión.
 
-   ```python
-   # --- CONTROL360: mantener sesión iniciada 30 días ---
-   sys.path.insert(0, "/home/Habita360/control360/control360_sesion")
-   import recordar_sesion
-   recordar_sesion.activar(application)
-   ```
+Para quitarlo: borrar ese bloque del WSGI y pulsar **Reload** en la pestaña Web.
 
-4. Botón **Reload** en la pestaña Web.
-
-Quienes ya tenían la sesión abierta quedan con los 30 días desde su próxima visita.
-El botón **Salir** sigue cerrando la sesión.
-
-Para quitarlo: borrar esas 4 líneas del WSGI y recargar.
+`recordar_sesion.py` es la misma lógica como módulo aparte, por si se quiere usar en otro programa.
