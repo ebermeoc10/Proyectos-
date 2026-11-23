@@ -211,6 +211,15 @@ CREATE TABLE IF NOT EXISTS ajustes (
 """
 
 
+def _alter(con, sql):
+    """ALTER TABLE que no falla si otro proceso ya agregó la columna."""
+    try:
+        con.execute(sql)
+    except sqlite3.OperationalError as e:
+        if "duplicate column" not in str(e):
+            raise
+
+
 def db():
     if "tec_db" not in g:
         con = sqlite3.connect(DB_PATH, timeout=15)
@@ -220,17 +229,17 @@ def db():
         cols = {r[1] for r in con.execute("PRAGMA table_info(fichas)")}
         for col in ("red", "red_nombre", "usuario_ext"):
             if col not in cols:
-                con.execute("ALTER TABLE fichas ADD COLUMN %s TEXT DEFAULT ''" % col)
+                _alter(con, "ALTER TABLE fichas ADD COLUMN %s TEXT DEFAULT ''" % col)
         cols = {r[1] for r in con.execute("PRAGMA table_info(ordenes)")}
         if "cliente_id" not in cols:
-            con.execute("ALTER TABLE ordenes ADD COLUMN cliente_id INTEGER")
+            _alter(con, "ALTER TABLE ordenes ADD COLUMN cliente_id INTEGER")
         if "monto" not in cols:
-            con.execute("ALTER TABLE ordenes ADD COLUMN monto REAL")
+            _alter(con, "ALTER TABLE ordenes ADD COLUMN monto REAL")
         cols = {r[1] for r in con.execute("PRAGMA table_info(cobros)")}
         if "monto_tecnico" not in cols:
-            con.execute("ALTER TABLE cobros ADD COLUMN monto_tecnico REAL")
+            _alter(con, "ALTER TABLE cobros ADD COLUMN monto_tecnico REAL")
         if "metodo_tecnico" not in cols:
-            con.execute("ALTER TABLE cobros ADD COLUMN metodo_tecnico TEXT DEFAULT ''")
+            _alter(con, "ALTER TABLE cobros ADD COLUMN metodo_tecnico TEXT DEFAULT ''")
         g.tec_db = con
     return g.tec_db
 

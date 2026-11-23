@@ -606,8 +606,11 @@ async function crearCliente(id, boton) {
     if (r.type !== 'opaqueredirect' && !(r.status >= 300 && r.status < 400)) {
       const t = await r.text();
       const doc = new DOMParser().parseFromString(t, 'text/html');
-      const m = doc.querySelector('.flash, .alert, .error, .msg, p');
-      throw new Error((m && m.textContent.trim()) || ('CONTROL360 no aceptó el cliente (código ' + r.status + ').'));
+      const m = [...doc.querySelectorAll('[role=alert], .flash, .alert, .error')].find(x => x.textContent.trim());
+      let txt = (m && m.textContent.trim()) || ('CONTROL360 no aceptó el cliente (código ' + r.status + ').');
+      if (/IP ya no está disponible/.test(txt) && v('red') !== 'external')
+        txt = 'La IP ' + v('ip') + ' no es de Orange.Net (no está en las IPs libres). Si el cliente está en la red de otro proveedor, elija "Otra red" y escriba el nombre de esa red.';
+      throw new Error(txt);
     }
     const j = await api('panel/api/fichas/' + id, { accion:'vincular', nombre: f.nombre });
     msg.style.color = 'var(--mov)'; msg.textContent = 'Cliente creado (#' + j.cliente_id + ').';
