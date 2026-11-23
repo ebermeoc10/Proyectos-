@@ -90,6 +90,9 @@ def configurar_control360(db, empresa_id, usuario_actual=None, ahora_txt=None):
 
 # ----------------------------------------------------------------- base de datos
 
+METODOS_PAGO = ("Efectivo", "Transferencia", "Depósito")
+TIPOS_GASTO = ("Gasolina", "Materiales", "Alimentación", "Transporte", "Otro")
+
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS tecnicos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,6 +143,46 @@ CREATE TABLE IF NOT EXISTS ordenes (
     terminada INTEGER,
     nota_tecnico TEXT DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS gastos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tecnico_id INTEGER NOT NULL,
+    tipo TEXT NOT NULL,
+    monto REAL NOT NULL,
+    nota TEXT DEFAULT '',
+    foto BLOB,
+    lat REAL,
+    lng REAL,
+    creada INTEGER,
+    estado TEXT DEFAULT 'por_aprobar',
+    revisada INTEGER,
+    nota_oficina TEXT DEFAULT '',
+    gasto_c360 INTEGER
+);
+CREATE INDEX IF NOT EXISTS ix_gastos ON gastos(tecnico_id, estado);
+CREATE TABLE IF NOT EXISTS caja_movs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tecnico_id INTEGER NOT NULL,
+    tipo TEXT NOT NULL,            -- 'fondo' (la oficina le da) o 'entrega' (el técnico devuelve)
+    monto REAL NOT NULL,
+    nota TEXT DEFAULT '',
+    creada INTEGER,
+    usuario TEXT DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS cobros (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    orden_id INTEGER,
+    tecnico_id INTEGER,
+    cliente_id INTEGER,
+    cliente TEXT DEFAULT '',
+    monto REAL,
+    nota_tecnico TEXT DEFAULT '',
+    estado TEXT DEFAULT 'por_confirmar',
+    creada INTEGER,
+    revisada INTEGER,
+    metodo TEXT DEFAULT '',
+    monto_recibido REAL,
+    nota_oficina TEXT DEFAULT ''
+);
 CREATE TABLE IF NOT EXISTS fichas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tecnico_id INTEGER NOT NULL,
@@ -178,6 +221,16 @@ def db():
         for col in ("red", "red_nombre", "usuario_ext"):
             if col not in cols:
                 con.execute("ALTER TABLE fichas ADD COLUMN %s TEXT DEFAULT ''" % col)
+        cols = {r[1] for r in con.execute("PRAGMA table_info(ordenes)")}
+        if "cliente_id" not in cols:
+            con.execute("ALTER TABLE ordenes ADD COLUMN cliente_id INTEGER")
+        if "monto" not in cols:
+            con.execute("ALTER TABLE ordenes ADD COLUMN monto REAL")
+        cols = {r[1] for r in con.execute("PRAGMA table_info(cobros)")}
+        if "monto_tecnico" not in cols:
+            con.execute("ALTER TABLE cobros ADD COLUMN monto_tecnico REAL")
+        if "metodo_tecnico" not in cols:
+            con.execute("ALTER TABLE cobros ADD COLUMN metodo_tecnico TEXT DEFAULT ''")
         g.tec_db = con
     return g.tec_db
 
@@ -619,12 +672,24 @@ def api_ordenes():
         d = _datos()
         if not (d.get("cliente") or "").strip():
             return jsonify(error="Falta el nombre del cliente"), 400
+        cobro_cli = None
+        monto = None
+        if (d.get("tipo") or "") == "Cobro":
+            try:
+                cobro_cli = int(d.get("cliente_id"))
+            except (TypeError, ValueError):
+                return jsonify(error="Para una orden de cobro, busque y elija el cliente de CONTROL360"), 400
+            txt = str(d.get("monto") or "").strip().replace(",", ".")
+            try:
+                monto = round(float(txt), 2) if txt else None
+            except ValueError:
+                return jsonify(error="El valor a cobrar no es válido"), 400
         con.execute(
-            "INSERT INTO ordenes (tecnico_id, tipo, cliente, telefono, direccion, notas, lat, lng, fecha, creada) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO ordenes (tecnico_id, tipo, cliente, telefono, direccion, notas, lat, lng, fecha, creada, "
+            "cliente_id, monto) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (d.get("tecnico_id") or None, d.get("tipo") or "Instalación", d["cliente"].strip(),
              d.get("telefono", ""), d.get("direccion", ""), d.get("notas", ""),
-             d.get("lat"), d.get("lng"), d.get("fecha") or hoy(), ahora()))
+             d.get("lat"), d.get("lng"), d.get("fecha") or hoy(), ahora(), cobro_cli, monto))
         con.commit()
     fecha = request.args.get("fecha") or hoy()
     nombres = {r["id"]: r["nombre"] for r in con.execute("SELECT id, nombre FROM tecnicos")}
@@ -644,7 +709,7 @@ def api_orden_editar(oid):
     if d.get("borrar"):
         con.execute("DELETE FROM ordenes WHERE id=?", (oid,))
     else:
-        for campo in ("tecnico_id", "tipo", "cliente", "telefono", "direccion", "notas", "lat", "lng", "fecha", "estado"):
+        for campo in ("tecnico_id", "tipo", "cliente", "telefono", "direccion", "notas", "lat", "lng", "fecha", "estado", "cliente_id", "monto"):
             if campo in d:
                 con.execute("UPDATE ordenes SET %s=? WHERE id=?" % campo, (d[campo], oid))
     con.commit()
@@ -771,8 +836,27 @@ def app_orden_estado(oid):
         if o["lat"] is None and d.get("lat") is not None:
             con.execute("UPDATE ordenes SET lat=?, lng=? WHERE id=?", (d["lat"], d["lng"], oid))
     elif estado == "terminada":
+        cobro_monto, cobro_metodo = None, ""
+        if (o["tipo"] or "") == "Cobro" and (d.get("monto") not in (None, "") or d.get("metodo")):
+            try:
+                cobro_monto = round(float(str(d.get("monto")).replace(",", ".")), 2)
+            except (TypeError, ValueError):
+                cobro_monto = -1
+            if cobro_monto < 0:
+                return jsonify(error="Escriba el valor que cobró (0 si no pagó)"), 400
+            cobro_metodo = d.get("metodo") or ""
+            if cobro_metodo not in METODOS_PAGO:
+                return jsonify(error="Elija la forma de pago"), 400
         con.execute("UPDATE ordenes SET estado='terminada', terminada=?, llegada=COALESCE(llegada, ?), "
                     "nota_tecnico=? WHERE id=?", (t, t, (d.get("nota") or "")[:500], oid))
+        # Orden de cobro terminada: el pago queda "por confirmar" hasta que la oficina lo apruebe.
+        if (o["tipo"] or "") == "Cobro" and not con.execute(
+                "SELECT 1 FROM cobros WHERE orden_id=?", (oid,)).fetchone():
+            con.execute(
+                "INSERT INTO cobros (orden_id, tecnico_id, cliente_id, cliente, monto, nota_tecnico, creada, "
+                "monto_tecnico, metodo_tecnico) VALUES (?,?,?,?,?,?,?,?,?)",
+                (oid, g.tecnico["id"], o["cliente_id"], o["cliente"], o["monto"],
+                 (d.get("nota") or "")[:500], t, cobro_monto, cobro_metodo))
     else:
         return jsonify(error="Estado no válido"), 400
     con.commit()
@@ -828,12 +912,17 @@ def _foto_jpeg(b64):
 
 
 def _ip_ok(ip):
+    ip = (ip or "").strip()
     if not ip:
         return ""
     try:
-        return str(ipaddress.IPv4Address(ip.strip()))
+        return str(ipaddress.IPv4Address(ip))
     except ValueError:
-        raise ValueError("La IP no es válida (ejemplo: 10.20.30.40).")
+        pass
+    import re as _re
+    if _re.fullmatch(r"[A-Za-z0-9._@\-]{2,64}", ip):
+        return ip  # usuario (PPPoE u otra red) en vez de IP
+    raise ValueError("Escriba una IP (ejemplo: 10.20.30.40) o un usuario (letras, números, . _ - @).")
 
 
 def _c360_db():
@@ -898,6 +987,13 @@ def app_fichas():
         tipo = d.get("tipo")
         if tipo not in ("nuevo", "actualizar"):
             return jsonify(error="Tipo de ficha no válido"), 400
+        if tipo == "nuevo" and d.get("orden_id"):
+            ordn = con.execute("SELECT tipo FROM ordenes WHERE id=?", (d.get("orden_id"),)).fetchone()
+            if ordn is not None and (ordn["tipo"] or "Instalación") != "Instalación":
+                # Solo las órdenes de instalación crean clientes nuevos; las demás no generan ficha.
+                filas = con.execute("SELECT * FROM fichas WHERE tecnico_id=? ORDER BY id DESC LIMIT 20",
+                                    (tid,)).fetchall()
+                return jsonify(fichas=[_ficha_dict(r) for r in filas], omitida=True)
         datos = {k: str(d.get(k) or "").strip()[:300] for k in CAMPOS_FICHA}
         try:
             datos["ip"] = _ip_ok(datos["ip"])
@@ -1043,3 +1139,368 @@ def api_ficha_accion(fid):
                 (ahora(), cliente_id, (d.get("nota") or "")[:300], fid))
     con.commit()
     return jsonify(ok=True, cliente_id=cliente_id)
+
+
+# ----------------------------------------------------------------- cobros de los técnicos
+#
+# Cuando el técnico termina una orden de "Cobro", el pago queda "por confirmar".
+# La oficina lo confirma cuando el dinero llega (efectivo entregado o transferencia vista)
+# y en ese momento se abre el registro de abono normal de CONTROL360, ya lleno.
+
+def _saldo_c360(c, cliente_id):
+    r = c.execute(
+        "SELECT COALESCE(SUM(MAX(0, i.amount_cents - COALESCE((SELECT SUM(p.amount_cents) FROM payments p "
+        "WHERE p.invoice_id=i.id AND p.company_id=i.company_id AND p.voided_at IS NULL), 0))), 0) "
+        "FROM invoices i WHERE i.company_id=? AND i.client_id=?", (_c360["empresa"], cliente_id)).fetchone()
+    return round((r[0] or 0) / 100.0, 2)
+
+
+def _url_pago(cliente_id, monto, metodo):
+    from urllib.parse import urlencode
+    return "/company/%d/clients/%d/debt?%s" % (
+        int(_c360["empresa"]), int(cliente_id), urlencode({"amount": "%.2f" % monto, "method": metodo}))
+
+
+@bp.route("/panel/api/clientes")
+@requiere_admin
+def api_buscar_clientes_panel():
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify(clientes=[])
+    try:
+        with _c360_db() as c:
+            filas = c.execute(
+                "SELECT id FROM clients WHERE company_id=? AND (name LIKE ? OR phone LIKE ? OR document LIKE ?) "
+                "ORDER BY name LIMIT 20", (_c360["empresa"], "%" + q + "%", "%" + q + "%", "%" + q + "%")).fetchall()
+            out = []
+            for f in filas:
+                cli = _cliente_c360(c, f["id"])
+                if cli is None:
+                    continue
+                try:
+                    cli["saldo"] = _saldo_c360(c, f["id"])
+                except sqlite3.Error:
+                    cli["saldo"] = None
+                out.append(cli)
+            return jsonify(clientes=out)
+    except RuntimeError as e:
+        return jsonify(error=str(e)), 503
+
+
+@bp.route("/panel/api/cobros")
+@requiere_admin
+def api_cobros():
+    estado = request.args.get("estado") or "por_confirmar"
+    if estado not in ("por_confirmar", "confirmado", "rechazado"):
+        estado = "por_confirmar"
+    con = db()
+    nombres = {r["id"]: r["nombre"] for r in con.execute("SELECT id, nombre FROM tecnicos")}
+    filas = [dict(r) for r in con.execute(
+        "SELECT * FROM cobros WHERE estado=? ORDER BY id DESC LIMIT 200", (estado,))]
+    saldos = {}
+    try:
+        with _c360_db() as c:
+            for f in filas:
+                if f["cliente_id"] and f["cliente_id"] not in saldos:
+                    saldos[f["cliente_id"]] = _saldo_c360(c, f["cliente_id"])
+    except (RuntimeError, sqlite3.Error):
+        pass
+    for f in filas:
+        f["tecnico"] = nombres.get(f["tecnico_id"], "")
+        f["fecha"] = local(f["creada"]).strftime("%d/%m %H:%M") if f["creada"] else ""
+        f["saldo"] = saldos.get(f["cliente_id"])
+        f["url"] = (_url_pago(f["cliente_id"], f["monto_recibido"], f["metodo"])
+                    if estado == "confirmado" and f["cliente_id"] and f["monto_recibido"] else "")
+    pend = con.execute("SELECT COUNT(*) FROM cobros WHERE estado='por_confirmar'").fetchone()[0]
+    return jsonify(cobros=filas, pendientes=pend)
+
+
+@bp.route("/panel/api/cobros/<int:cobro_id>", methods=["POST"])
+@requiere_admin
+def api_cobro_accion(cobro_id):
+    con = db()
+    f = con.execute("SELECT * FROM cobros WHERE id=?", (cobro_id,)).fetchone()
+    if f is None:
+        return jsonify(error="Cobro no encontrado"), 404
+    if f["estado"] != "por_confirmar":
+        return jsonify(error="Este cobro ya fue revisado"), 400
+    d = _datos()
+    accion = d.get("accion")
+    if accion == "rechazar":
+        con.execute("UPDATE cobros SET estado='rechazado', revisada=?, nota_oficina=? WHERE id=?",
+                    (ahora(), (d.get("nota") or "")[:300], cobro_id))
+        con.commit()
+        return jsonify(ok=True)
+    if accion != "confirmar":
+        return jsonify(error="Acción no válida"), 400
+    try:
+        cliente_id = int(f["cliente_id"] or d.get("cliente_id"))
+    except (TypeError, ValueError):
+        return jsonify(error="Busque y elija el cliente de CONTROL360"), 400
+    metodo = d.get("metodo") or "Efectivo"
+    if metodo not in ("Efectivo", "Transferencia", "Depósito"):
+        return jsonify(error="Forma de pago no válida"), 400
+    try:
+        monto = round(float(str(d.get("monto") or "").replace(",", ".")), 2)
+    except ValueError:
+        monto = 0
+    if monto <= 0:
+        return jsonify(error="Escriba el valor que se recibió"), 400
+    try:
+        with _c360_db() as c:
+            if _cliente_c360(c, cliente_id) is None:
+                return jsonify(error="Cliente no encontrado en CONTROL360"), 404
+    except RuntimeError as e:
+        return jsonify(error=str(e)), 503
+    con.execute("UPDATE cobros SET estado='confirmado', revisada=?, metodo=?, monto_recibido=?, cliente_id=?, "
+                "nota_oficina=? WHERE id=?",
+                (ahora(), metodo, monto, cliente_id, (d.get("nota") or "")[:300], cobro_id))
+    con.commit()
+    return jsonify(ok=True, url=_url_pago(cliente_id, monto, metodo))
+
+
+# ----------------------------------------------------------------- caja de cada técnico
+#
+# Lo que el técnico tiene en la mano = fondos que le dio la oficina + cobros en efectivo
+# - gastos aprobados - lo que ya entregó. Los gastos los manda desde la app con foto de
+# la factura; la secretaria los aprueba en el panel y pasan a los gastos de CONTROL360.
+
+_EFECTIVO_COBRO = (
+    "CASE WHEN metodo_tecnico='Efectivo' THEN COALESCE(monto_tecnico, 0) "
+    "WHEN COALESCE(metodo_tecnico, '')='' AND estado='confirmado' AND metodo='Efectivo' "
+    "THEN COALESCE(monto_recibido, 0) ELSE 0 END")
+
+
+def _caja_resumen(con, tid):
+    def suma(sql, *a):
+        return round(con.execute(sql, a).fetchone()[0] or 0, 2)
+    fondos = suma("SELECT SUM(monto) FROM caja_movs WHERE tecnico_id=? AND tipo='fondo'", tid)
+    entregas = suma("SELECT SUM(monto) FROM caja_movs WHERE tecnico_id=? AND tipo='entrega'", tid)
+    cobros = suma("SELECT SUM(%s) FROM cobros WHERE tecnico_id=? AND estado!='rechazado'" % _EFECTIVO_COBRO, tid)
+    gastos = suma("SELECT SUM(monto) FROM gastos WHERE tecnico_id=? AND estado='aprobado'", tid)
+    pend = con.execute("SELECT COUNT(*), COALESCE(SUM(monto), 0) FROM gastos WHERE tecnico_id=? "
+                       "AND estado='por_aprobar'", (tid,)).fetchone()
+    return {"fondos": fondos, "cobros_efectivo": cobros, "gastos_aprobados": gastos, "entregas": entregas,
+            "en_mano": round(fondos + cobros - gastos - entregas, 2),
+            "gastos_por_aprobar": pend[0], "gastos_por_aprobar_monto": round(pend[1], 2)}
+
+
+def _caja_movimientos(con, tid, desde=None, hasta=None, limite=200):
+    """Movimientos de la caja de un técnico, del más nuevo al más viejo."""
+    desde = desde or 0
+    hasta = hasta or 4102444800
+    movs = []
+    for r in con.execute("SELECT * FROM caja_movs WHERE tecnico_id=? AND creada BETWEEN ? AND ?",
+                         (tid, desde, hasta)):
+        movs.append({"ts": r["creada"], "clase": r["tipo"], "monto": r["monto"],
+                     "detalle": "Fondo entregado por la oficina" if r["tipo"] == "fondo" else "Entregó dinero a la oficina",
+                     "nota": r["nota"], "estado": ""})
+    for r in con.execute("SELECT id, creada, tipo, monto, nota, estado, nota_oficina FROM gastos "
+                         "WHERE tecnico_id=? AND creada BETWEEN ? AND ?", (tid, desde, hasta)):
+        movs.append({"ts": r["creada"], "clase": "gasto", "monto": r["monto"], "detalle": "Gasto: " + r["tipo"],
+                     "nota": r["nota"], "estado": r["estado"], "gasto_id": r["id"],
+                     "nota_oficina": r["nota_oficina"]})
+    for r in con.execute("SELECT creada, cliente, estado, %s AS ef, monto_tecnico, metodo_tecnico FROM cobros "
+                         "WHERE tecnico_id=? AND creada BETWEEN ? AND ?" % _EFECTIVO_COBRO, (tid, desde, hasta)):
+        if r["estado"] == "rechazado":
+            continue
+        movs.append({"ts": r["creada"], "clase": "cobro", "monto": r["ef"],
+                     "detalle": "Cobro: " + (r["cliente"] or ""),
+                     "nota": ("%s $%.2f" % (r["metodo_tecnico"], r["monto_tecnico"])
+                              if r["metodo_tecnico"] and r["monto_tecnico"] is not None else ""),
+                     "estado": r["estado"]})
+    movs.sort(key=lambda m: m["ts"] or 0, reverse=True)
+    for m in movs:
+        m["fecha"] = local(m["ts"]).strftime("%d/%m %H:%M") if m["ts"] else ""
+    return movs[:limite]
+
+
+@bp.route("/api/caja", methods=["GET", "OPTIONS"])
+@requiere_tecnico
+def app_caja():
+    con = db()
+    tid = g.tecnico["id"]
+    return jsonify(caja=_caja_resumen(con, tid), movimientos=_caja_movimientos(con, tid, limite=15),
+                   tipos=list(TIPOS_GASTO))
+
+
+@bp.route("/api/gastos", methods=["POST", "OPTIONS"])
+@requiere_tecnico
+def app_gasto():
+    d = request.get_json(force=True, silent=True) or {}
+    tipo = d.get("tipo") or ""
+    if tipo not in TIPOS_GASTO:
+        return jsonify(error="Elija el tipo de gasto"), 400
+    try:
+        monto = round(float(str(d.get("monto") or "").replace(",", ".")), 2)
+    except ValueError:
+        monto = 0
+    if monto <= 0 or monto > 5000:
+        return jsonify(error="Escriba el valor del gasto"), 400
+    try:
+        foto = _foto_jpeg(d.get("foto") or "")
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+    if not foto:
+        return jsonify(error="Tome la foto de la factura o recibo"), 400
+    try:
+        lat = float(d["lat"]) if d.get("lat") not in (None, "") else None
+        lng = float(d["lng"]) if d.get("lng") not in (None, "") else None
+    except (TypeError, ValueError):
+        lat = lng = None
+    con = db()
+    con.execute("INSERT INTO gastos (tecnico_id, tipo, monto, nota, foto, lat, lng, creada) VALUES (?,?,?,?,?,?,?,?)",
+                (g.tecnico["id"], tipo, monto, str(d.get("nota") or "").strip()[:300], foto, lat, lng, ahora()))
+    con.commit()
+    return jsonify(ok=True, caja=_caja_resumen(con, g.tecnico["id"]))
+
+
+def _rango_fechas():
+    """desde/hasta (AAAA-MM-DD) del panel a timestamps; por defecto los últimos 30 días."""
+    try:
+        desde = rango_dia(request.args.get("desde"))[0] if request.args.get("desde") else ahora() - 30 * 86400
+        hasta = rango_dia(request.args.get("hasta"))[1] if request.args.get("hasta") else ahora() + 60
+    except (TypeError, ValueError):
+        desde, hasta = ahora() - 30 * 86400, ahora() + 60
+    return desde, hasta
+
+
+@bp.route("/panel/api/caja")
+@requiere_admin
+def api_caja():
+    con = db()
+    tecs = [dict(r) for r in con.execute("SELECT id, nombre, activo FROM tecnicos ORDER BY nombre")]
+    resumen = []
+    for t in tecs:
+        c = _caja_resumen(con, t["id"])
+        if t["activo"] or c["en_mano"] or c["gastos_por_aprobar"]:
+            c.update(id=t["id"], nombre=t["nombre"])
+            resumen.append(c)
+    nombres = {t["id"]: t["nombre"] for t in tecs}
+    estado = request.args.get("estado_gasto") or "por_aprobar"
+    if estado not in ("por_aprobar", "aprobado", "rechazado"):
+        estado = "por_aprobar"
+    gastos = []
+    for r in con.execute("SELECT id, tecnico_id, tipo, monto, nota, creada, estado, nota_oficina, lat, lng, "
+                         "foto IS NOT NULL AS tiene_foto FROM gastos WHERE estado=? ORDER BY id DESC LIMIT 100",
+                         (estado,)):
+        x = dict(r)
+        x["tecnico"] = nombres.get(x["tecnico_id"], "")
+        x["fecha"] = local(x["creada"]).strftime("%d/%m %H:%M") if x["creada"] else ""
+        gastos.append(x)
+    movs = []
+    try:
+        tid = int(request.args.get("tecnico_id") or 0)
+    except ValueError:
+        tid = 0
+    if tid:
+        desde, hasta = _rango_fechas()
+        movs = _caja_movimientos(con, tid, desde, hasta, limite=500)
+    pend = con.execute("SELECT COUNT(*) FROM gastos WHERE estado='por_aprobar'").fetchone()[0]
+    return jsonify(resumen=resumen, gastos=gastos, movimientos=movs, pendientes=pend,
+                   tipos=list(TIPOS_GASTO))
+
+
+@bp.route("/panel/gastos/<int:gid>/foto")
+@requiere_admin
+def gasto_foto(gid):
+    r = db().execute("SELECT foto FROM gastos WHERE id=?", (gid,)).fetchone()
+    if r is None or r["foto"] is None:
+        return "", 404
+    return Response(r["foto"], mimetype="image/jpeg", headers={"Cache-Control": "private, no-store"})
+
+
+def _gasto_a_c360(gasto, nombre_tecnico):
+    """Registra el gasto aprobado en los gastos de Orange en CONTROL360. Devuelve el id o None."""
+    if not _c360.get("db"):
+        return None
+    u = _c360["usuario"]() if _c360.get("usuario") else None
+    if not u:
+        return None
+    desc = "Gasto técnico %s: %s" % (nombre_tecnico, gasto["tipo"])
+    if gasto["nota"]:
+        desc += " - " + gasto["nota"]
+    cuando = local(gasto["creada"]).isoformat(timespec="seconds")
+    with _c360_db() as c, c:
+        cur = c.execute("INSERT INTO expenses(company_id,user_id,description,amount_cents,spent_at) VALUES(?,?,?,?,?)",
+                        (_c360["empresa"], u["id"], desc[:300], int(round(gasto["monto"] * 100)), cuando))
+        _audit(c, "tecnicos_gasto", "gasto %s -> expense %s" % (gasto["id"], cur.lastrowid))
+        return cur.lastrowid
+
+
+@bp.route("/panel/api/gastos/<int:gid>", methods=["POST"])
+@requiere_admin
+def api_gasto_accion(gid):
+    con = db()
+    gasto = con.execute("SELECT * FROM gastos WHERE id=?", (gid,)).fetchone()
+    if gasto is None:
+        return jsonify(error="Gasto no encontrado"), 404
+    if gasto["estado"] != "por_aprobar":
+        return jsonify(error="Este gasto ya fue revisado"), 400
+    d = _datos()
+    accion = d.get("accion")
+    nota = (d.get("nota") or "")[:300]
+    if accion == "rechazar":
+        con.execute("UPDATE gastos SET estado='rechazado', revisada=?, nota_oficina=? WHERE id=?",
+                    (ahora(), nota, gid))
+        con.commit()
+        return jsonify(ok=True)
+    if accion != "aprobar":
+        return jsonify(error="Acción no válida"), 400
+    monto = gasto["monto"]
+    if d.get("monto") not in (None, ""):
+        try:
+            monto = round(float(str(d["monto"]).replace(",", ".")), 2)
+        except ValueError:
+            monto = 0
+        if monto <= 0:
+            return jsonify(error="Valor no válido"), 400
+    nombre = (con.execute("SELECT nombre FROM tecnicos WHERE id=?", (gasto["tecnico_id"],)).fetchone() or [""])[0]
+    g2 = dict(gasto)
+    g2["monto"] = monto
+    aviso = ""
+    try:
+        exp_id = _gasto_a_c360(g2, nombre)
+    except (RuntimeError, sqlite3.Error):
+        exp_id = None
+    if exp_id is None and _c360.get("db"):
+        aviso = "Aprobado, pero no se pudo pasar a los gastos de CONTROL360."
+    con.execute("UPDATE gastos SET estado='aprobado', revisada=?, nota_oficina=?, monto=?, gasto_c360=? WHERE id=?",
+                (ahora(), nota, monto, exp_id, gid))
+    con.commit()
+    return jsonify(ok=True, aviso=aviso)
+
+
+@bp.route("/panel/api/caja/movimiento", methods=["POST"])
+@requiere_admin
+def api_caja_mov():
+    d = _datos()
+    tipo = d.get("tipo")
+    if tipo not in ("fondo", "entrega"):
+        return jsonify(error="Tipo no válido"), 400
+    con = db()
+    try:
+        tid = int(d.get("tecnico_id"))
+    except (TypeError, ValueError):
+        return jsonify(error="Elija el técnico"), 400
+    if con.execute("SELECT 1 FROM tecnicos WHERE id=?", (tid,)).fetchone() is None:
+        return jsonify(error="Técnico no encontrado"), 404
+    try:
+        monto = round(float(str(d.get("monto") or "").replace(",", ".")), 2)
+    except ValueError:
+        monto = 0
+    if monto <= 0:
+        return jsonify(error="Escriba el valor"), 400
+    u = _c360["usuario"]() if _c360.get("usuario") else None
+    quien = ""
+    if u:
+        for k in ("username", "name", "id"):
+            try:
+                quien = str(u[k])
+                break
+            except (KeyError, IndexError):
+                continue
+    con.execute("INSERT INTO caja_movs (tecnico_id, tipo, monto, nota, creada, usuario) VALUES (?,?,?,?,?,?)",
+                (tid, tipo, monto, (d.get("nota") or "")[:300], ahora(), quien))
+    con.commit()
+    return jsonify(ok=True, caja=_caja_resumen(con, tid))
