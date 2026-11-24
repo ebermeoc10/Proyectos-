@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sofía 24/7 · Tu vendedora que nunca duerme</title>
+<meta name="description" content="Sofía contesta llamadas y WhatsApp de tu negocio las 24 horas: da precios, toma pedidos y agenda citas. Para negocios de Machala y todo Ecuador.">
+<meta property="og:title" content="Sofía 24/7 · Tu vendedora que nunca duerme">
+<meta property="og:description" content="Contesta llamadas y WhatsApp las 24 horas, da precios, toma pedidos y agenda citas.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14110f; --paper:#fbf6ee; --card:#ffffff; --muted:#6b625a;
+  --coral:#ff5a36; --coral-dark:#e0441f; --green:#1fae5b; --green-dark:#178a48;
+  --sand:#f3e7d3; --line:#e8dccb;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Outfit',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+h1,h2,h3{font-family:'Fraunces',Georgia,serif;line-height:1.08;letter-spacing:-.01em}
+a{color:inherit}
+
+/* nav */
+nav{display:flex;justify-content:space-between;align-items:center;padding:18px 0}
+.logo{font-family:'Fraunces',serif;font-weight:800;font-size:1.45rem;text-decoration:none}
+.logo span{color:var(--coral)}
+.nav-cta{font-weight:600;font-size:.95rem;text-decoration:none;border:2px solid var(--ink);padding:8px 16px;border-radius:999px}
+.nav-cta:hover{background:var(--ink);color:var(--paper)}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.15fr .85fr;gap:48px;align-items:center;padding:40px 0 80px}
+.tag{display:inline-flex;align-items:center;gap:8px;background:var(--sand);padding:6px 14px;border-radius:999px;font-weight:600;font-size:.88rem;margin-bottom:22px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(31,174,91,.2);animation:pulse 1.8s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 8px rgba(31,174,91,0)}}
+.hero h1{font-size:clamp(2.6rem,6.2vw,4.6rem);font-weight:800;margin-bottom:22px}
+.hero h1 em{font-style:normal;color:var(--coral)}
+.hero p.lead{font-size:1.2rem;color:var(--muted);max-width:34ch;margin-bottom:32px}
+.btns{display:flex;flex-wrap:wrap;gap:12px}
+.btn{display:inline-flex;align-items:center;gap:10px;font-weight:600;font-size:1.05rem;text-decoration:none;padding:16px 24px;border-radius:14px;transition:transform .15s,background .15s}
+.btn:hover{transform:translateY(-2px)}
+.btn-green{background:var(--green);color:#fff}
+.btn-green:hover{background:var(--green-dark)}
+.btn-dark{background:var(--ink);color:var(--paper)}
+.btn svg{width:22px;height:22px;flex-shrink:0}
+.trust{margin-top:22px;font-size:.92rem;color:var(--muted)}
+
+/* phone chat */
+.phone{background:var(--ink);border-radius:36px;padding:12px;box-shadow:0 30px 60px -20px rgba(20,17,15,.45);transform:rotate(2deg);max-width:340px;justify-self:center;width:100%}
+.screen{background:#ece5dd;border-radius:26px;overflow:hidden}
+.chat-head{background:#075e54;color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px}
+.avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--coral),#ffb36b);display:grid;place-items:center;font-family:'Fraunces',serif;font-weight:800}
+.chat-head small{display:block;opacity:.8;font-size:.75rem}
+.msgs{padding:16px 12px;display:flex;flex-direction:column;gap:8px;min-height:330px}
+.m{max-width:82%;padding:8px 12px;border-radius:12px;font-size:.9rem;box-shadow:0 1px 1px rgba(0,0,0,.08);opacity:0;transform:translateY(6px);animation:in .4s forwards}
+.m.c{align-self:flex-end;background:#dcf8c6;border-top-right-radius:2px}
+.m.s{align-self:flex-start;background:#fff;border-top-left-radius:2px}
+.m .t{display:block;text-align:right;font-size:.68rem;color:#8a8a8a;margin-top:2px}
+@keyframes in{to{opacity:1;transform:none}}
+
+/* sections */
+section{padding:80px 0}
+.eyebrow{font-weight:700;color:var(--coral);text-transform:uppercase;letter-spacing:.12em;font-size:.8rem;margin-bottom:12px}
+h2{font-size:clamp(2rem,4.5vw,3rem);margin-bottom:18px;max-width:20ch}
+.sub{color:var(--muted);font-size:1.1rem;max-width:56ch;margin-bottom:44px}
+
+.problem{background:var(--ink);color:var(--paper)}
+.problem .sub{color:#b9afa4}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.stat{border-top:2px solid #3a332d;padding-top:20px}
+.stat b{font-family:'Fraunces',serif;font-size:2.6rem;color:var(--coral);display:block;line-height:1}
+.stat p{color:#d4cbc1;margin-top:8px}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px}
+.card .ic{width:48px;height:48px;border-radius:14px;background:var(--sand);display:grid;place-items:center;font-size:1.5rem;margin-bottom:18px}
+.card h3{font-size:1.3rem;margin-bottom:8px}
+.card p{color:var(--muted)}
+
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;counter-reset:s}
+.step{position:relative;padding:28px;border-radius:20px;background:var(--sand)}
+.step::before{counter-increment:s;content:counter(s);font-family:'Fraunces',serif;font-weight:800;font-size:3.4rem;color:var(--coral);line-height:1;display:block;margin-bottom:12px}
+.step h3{font-size:1.25rem;margin-bottom:6px}
+.step p{color:var(--muted)}
+
+.biz{display:flex;flex-wrap:wrap;gap:10px}
+.chip{background:var(--card);border:1px solid var(--line);padding:12px 18px;border-radius:999px;font-weight:500}
+
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.col{border-radius:20px;padding:30px}
+.col.old{background:var(--card);border:1px solid var(--line)}
+.col.new{background:var(--coral);color:#fff}
+.col h3{font-size:1.4rem;margin-bottom:16px}
+.col li{list-style:none;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.08);display:flex;gap:10px}
+.col.new li{border-color:rgba(255,255,255,.25)}
+
+.faq details{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 24px;margin-bottom:12px}
+.faq summary{font-weight:600;font-size:1.08rem;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:16px}
+.faq summary::after{content:"+";font-size:1.4rem;color:var(--coral)}
+.faq details[open] summary::after{content:"–"}
+.faq details p{color:var(--muted);margin-top:12px}
+
+.final{text-align:center;background:var(--sand);border-radius:32px;padding:64px 24px;margin:0 20px}
+.final h2{margin:0 auto 16px}
+.final .sub{margin:0 auto 32px}
+.final .btns{justify-content:center}
+
+footer{padding:40px 0;text-align:center;color:var(--muted);font-size:.9rem}
+
+.float{position:fixed;right:18px;bottom:18px;width:60px;height:60px;border-radius:50%;background:var(--green);display:grid;place-items:center;box-shadow:0 10px 25px -5px rgba(31,174,91,.6);z-index:10}
+.float svg{width:32px;height:32px}
+
+@media (max-width:860px){
+  .hero{grid-template-columns:1fr;padding-top:20px;gap:40px}
+  .phone{transform:none}
+  .grid,.steps,.stats{grid-template-columns:1fr}
+  .compare{grid-template-columns:1fr}
+  section{padding:60px 0}
+  .btn{width:100%;justify-content:center}
+  .final{margin:0 16px}
+}
+@media (max-width:420px){.nav-cta{display:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav>
+    <a class="logo" href="#">Sofía <span>24/7</span></a>
+    <a class="nav-cta" href="https://wa.me/593991439295?text=Hola%20Sof%C3%ADa%2C%20quiero%20una%20vendedora%2024%2F7%20para%20mi%20negocio" target="_blank" rel="noopener">Quiero a Sofía</a>
+  </nav>
+
+  <header class="hero">
+    <div>
+      <span class="tag"><span class="dot"></span> Atendiendo ahora mismo</span>
+      <h1>Contrata a Sofía, tu vendedora <em>24/7</em></h1>
+      <p class="lead">Contesta llamadas y WhatsApp de tu negocio, da precios, toma pedidos y agenda citas. De día, de noche y en feriado.</p>
+      <div class="btns">
+        <a class="btn btn-green" href="https://wa.me/593991439295?text=Hola%20Sof%C3%ADa%2C%20quiero%20probarte" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91C21.95 6.45 17.5 2 12.04 2zm5.8 14.06c-.24.68-1.42 1.3-1.95 1.34-.5.05-.97.23-3.27-.68-2.77-1.09-4.52-3.93-4.66-4.11-.13-.18-1.11-1.48-1.11-2.82 0-1.34.7-2 .95-2.27.25-.27.54-.34.72-.34h.52c.17 0 .39-.06.61.47.23.54.77 1.88.84 2.01.07.14.11.3.02.48-.09.18-.14.29-.27.45-.14.16-.29.36-.41.48-.14.14-.28.28-.12.55.16.27.7 1.16 1.51 1.88 1.04.93 1.91 1.21 2.18 1.35.27.14.43.11.59-.07.16-.18.68-.79.86-1.06.18-.27.36-.23.61-.14.25.09 1.59.75 1.86.89.27.14.45.2.52.32.07.11.07.66-.17 1.34z"/></svg>
+          Habla con Sofía ahora
+        </a>
+        <a class="btn btn-dark" href="https://wa.me/593991439295?text=Hola%2C%20quiero%20una%20Sof%C3%ADa%20para%20mi%20negocio" target="_blank" rel="noopener">Quiero una para mi negocio →</a>
+      </div>
+      <p class="trust">Escríbele o llámala: te va a contestar ella misma.</p>
+    </div>
+
+    <div class="phone" aria-hidden="true">
+      <div class="screen">
+        <div class="chat-head"><div class="avatar">S</div><div><b>Ferretería El Constructor</b><small>en línea</small></div></div>
+        <div class="msgs">
+          <div class="m c" style="animation-delay:.3s">Buenas, ¿tienen cemento? 🌙<span class="t">23:47</span></div>
+          <div class="m s" style="animation-delay:1.1s">¡Buenas noches! Sí, Holcim de 50 kg a $8.50 el saco. ¿Cuántos necesita?<span class="t">23:47</span></div>
+          <div class="m c" style="animation-delay:1.9s">10, para que me los lleven mañana<span class="t">23:48</span></div>
+          <div class="m s" style="animation-delay:2.7s">Listo: 10 sacos, $85. La entrega es gratis porque pasa de $50. ¿Me da su nombre y dirección?<span class="t">23:48</span></div>
+          <div class="m c" style="animation-delay:3.5s">Carlos, Av. 25 de Junio y Guayas 👍<span class="t">23:49</span></div>
+          <div class="m s" style="animation-delay:4.3s">Pedido confirmado, don Carlos. Mañana a primera hora se lo enviamos ✅<span class="t">23:49</span></div>
+        </div>
+      </div>
+    </div>
+  </header>
+</div>
+
+<section class="problem">
+  <div class="wrap">
+    <p class="eyebrow">El problema</p>
+    <h2>Cada mensaje sin contestar es una venta que se va a la competencia</h2>
+    <p class="sub">Tus clientes escriben a la hora del almuerzo, de noche y en feriado. Si no les respondes rápido, le compran al de al lado.</p>
+    <div class="stats">
+      <div class="stat"><b>24 h</b><p>atendiendo, los 7 días, sin vacaciones ni permisos.</p></div>
+      <div class="stat"><b>Segundos</b><p>en contestar, aunque escriban diez clientes al mismo tiempo.</p></div>
+      <div class="stat"><b>Menos</b><p>de lo que cuesta un sueldo, sin décimos ni IESS.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Qué hace Sofía</p>
+    <h2>Habla como una persona, no como un robot</h2>
+    <p class="sub">Conversa con naturalidad, con voz y por escrito, y conoce tu negocio de punta a punta.</p>
+    <div class="grid">
+      <div class="card"><div class="ic">📞</div><h3>Contesta llamadas</h3><p>Atiende el teléfono con voz natural y resuelve dudas al instante.</p></div>
+      <div class="card"><div class="ic">💬</div><h3>Responde WhatsApp</h3><p>Chatea con tus clientes como lo harías tú, con tus precios y tu forma de hablar.</p></div>
+      <div class="card"><div class="ic">🧾</div><h3>Toma pedidos</h3><p>Anota productos, cantidades, dirección y forma de pago, y te los pasa listos.</p></div>
+      <div class="card"><div class="ic">📅</div><h3>Agenda citas</h3><p>Revisa tu agenda y reserva turnos sin que tengas que contestar.</p></div>
+      <div class="card"><div class="ic">📦</div><h3>Consulta tu inventario</h3><p>Se conecta a tu sistema para dar precios y existencias reales.</p></div>
+      <div class="card"><div class="ic">🙋</div><h3>Te pasa al cliente</h3><p>Si alguien pide hablar con una persona, te transfiere la conversación.</p></div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <p class="eyebrow">Cómo funciona</p>
+    <h2>Lista en pocos días</h2>
+    <div class="steps">
+      <div class="step"><h3>Nos cuentas de tu negocio</h3><p>Productos, precios, horarios y cómo atiendes. Una conversación y listo.</p></div>
+      <div class="step"><h3>Entrenamos a tu Sofía</h3><p>La configuramos con tu información y la conectamos a tu WhatsApp y teléfono.</p></div>
+      <div class="step"><h3>Pruebas y vendes</h3><p>La pruebas tú mismo, ajustamos lo que haga falta y empieza a atender.</p></div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <p class="eyebrow">Para quién</p>
+    <h2>Sirve para cualquier negocio que atiende clientes</h2>
+    <div class="biz">
+      <span class="chip">🔨 Ferreterías</span><span class="chip">💈 Barberías y peluquerías</span><span class="chip">🍽️ Restaurantes</span><span class="chip">💊 Farmacias</span><span class="chip">🦷 Consultorios</span><span class="chip">⚖️ Notarías y estudios</span><span class="chip">🚗 Talleres</span><span class="chip">🏠 Inmobiliarias</span><span class="chip">🛍️ Tiendas</span><span class="chip">🌐 Proveedores de internet</span>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="compare">
+      <div class="col old">
+        <h3>Sin Sofía</h3>
+        <ul>
+          <li>❌ Mensajes que esperan horas</li>
+          <li>❌ Ventas perdidas de noche y en feriado</li>
+          <li>❌ Repites los mismos precios todo el día</li>
+          <li>❌ Pedidos anotados a la carrera</li>
+        </ul>
+      </div>
+      <div class="col new">
+        <h3>Con Sofía 24/7</h3>
+        <ul>
+          <li>✅ Respuesta en segundos</li>
+          <li>✅ Vendes mientras duermes</li>
+          <li>✅ Tú te dedicas a lo importante</li>
+          <li>✅ Pedidos claros y completos</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="faq" style="padding-top:0">
+  <div class="wrap">
+    <p class="eyebrow">Preguntas</p>
+    <h2>Lo que nos preguntan</h2>
+    <details><summary>¿Mis clientes se van a dar cuenta de que no es una persona?</summary><p>Sofía habla con naturalidad y con voz real. Si alguien le pregunta, responde con honestidad que es la asistente virtual de tu negocio.</p></details>
+    <details><summary>¿Necesito saber de tecnología?</summary><p>No. Nosotros la configuramos y conectamos todo. Tú solo nos das la información de tu negocio.</p></details>
+    <details><summary>¿Puedo seguir usando mi WhatsApp?</summary><p>Sí. Te ayudamos a elegir la mejor forma: en tu número de negocio o en uno nuevo exclusivo para Sofía.</p></details>
+    <details><summary>¿Y si un cliente quiere hablar con alguien?</summary><p>Sofía le pasa la conversación o la llamada a ti o a tu encargado.</p></details>
+    <details><summary>¿Cuánto cuesta?</summary><p>Depende del tamaño de tu negocio y de los canales que quieras. Escríbenos y te damos un precio a tu medida, con prueba incluida.</p></details>
+  </div>
+</section>
+
+<section>
+  <div class="final">
+    <h2>Pon a Sofía a trabajar en tu negocio</h2>
+    <p class="sub">Escríbele ahora y pruébala tú mismo. Te va a contestar ella.</p>
+    <div class="btns">
+      <a class="btn btn-green" href="https://wa.me/593991439295?text=Hola%20Sof%C3%ADa%2C%20quiero%20probarte" target="_blank" rel="noopener">Habla con Sofía ahora</a>
+      <a class="btn btn-dark" href="https://wa.me/593991439295?text=Hola%2C%20quiero%20una%20Sof%C3%ADa%20para%20mi%20negocio" target="_blank" rel="noopener">Quiero una para mi negocio →</a>
+    </div>
+  </div>
+</section>
+
+<footer>Sofía 24/7 · Machala, El Oro, Ecuador · WhatsApp 099 143 9295</footer>
+
+<a class="float" href="https://wa.me/593991439295?text=Hola%20Sof%C3%ADa" target="_blank" rel="noopener" aria-label="Escribir por WhatsApp">
+  <svg viewBox="0 0 24 24" fill="#fff"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91C21.95 6.45 17.5 2 12.04 2zm5.8 14.06c-.24.68-1.42 1.3-1.95 1.34-.5.05-.97.23-3.27-.68-2.77-1.09-4.52-3.93-4.66-4.11-.13-.18-1.11-1.48-1.11-2.82 0-1.34.7-2 .95-2.27.25-.27.54-.34.72-.34h.52c.17 0 .39-.06.61.47.23.54.77 1.88.84 2.01.07.14.11.3.02.48-.09.18-.14.29-.27.45-.14.16-.29.36-.41.48-.14.14-.28.28-.12.55.16.27.7 1.16 1.51 1.88 1.04.93 1.91 1.21 2.18 1.35.27.14.43.11.59-.07.16-.18.68-.79.86-1.06.18-.27.36-.23.61-.14.25.09 1.59.75 1.86.89.27.14.45.2.52.32.07.11.07.66-.17 1.34z"/></svg>
+</a>
+
+</body>
+</html>
